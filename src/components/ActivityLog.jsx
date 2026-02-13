@@ -11,7 +11,6 @@ import {
   ChevronDown,
   AlertCircle,
   Zap,
-  XCircle,
   Heart,
   BookOpen,
   Briefcase,
@@ -25,13 +24,10 @@ import {
   Target,
   TrendingUp,
   Award,
-  Coffee,
-  Moon,
   Sun,
-  Cloud,
-  CloudRain,
-  CloudSnow,
-  CloudLightning
+  Moon,
+  Bell,
+  BellOff
 } from 'lucide-react';
 
 const ActivityLog = () => {
@@ -44,6 +40,18 @@ const ActivityLog = () => {
     const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     return days[new Date().getDay()];
   });
+
+  // ---------- নোটিফিকেশন স্টেট ----------
+  const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
+    const saved = localStorage.getItem('notificationsEnabled');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
+
+  // ---------- পরিসংখ্যান স্টেট ----------
+  const [todayCompleted, setTodayCompleted] = useState(0);
+  const [yesterdayCompleted, setYesterdayCompleted] = useState(0);
+  const [weekCompleted, setWeekCompleted] = useState(0);
 
   // ---------- লোকালস্টোরেজ থেকে টাইম ব্লক লোড ----------
   const loadTimeBlocks = () => {
@@ -66,6 +74,62 @@ const ActivityLog = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // ---------- নোটিফিকেশন সেটিংস ----------
+  useEffect(() => {
+    localStorage.setItem('notificationsEnabled', JSON.stringify(notificationsEnabled));
+  }, [notificationsEnabled]);
+
+  // পারমিশন চাওয়া
+  const requestNotificationPermission = async () => {
+    if (notificationPermission === 'granted') return;
+    try {
+      const perm = await Notification.requestPermission();
+      setNotificationPermission(perm);
+      if (perm === 'granted') {
+        toast.success('Notifications enabled!');
+      }
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+    }
+  };
+
+  // নোটিফিকেশন টগল
+  const toggleNotifications = () => {
+    if (!notificationsEnabled && notificationPermission !== 'granted') {
+      requestNotificationPermission().then(() => {
+        setNotificationsEnabled(true);
+      });
+    } else {
+      setNotificationsEnabled(!notificationsEnabled);
+    }
+  };
+
+  // ---------- টাস্ক রিমাইন্ডার চেক (প্রতি ৩০ সেকেন্ডে) ----------
+  useEffect(() => {
+    if (!notificationsEnabled || notificationPermission !== 'granted') return;
+
+    const checkUpcomingTasks = () => {
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      
+      todayTasks.forEach(task => {
+        // যদি টাস্কে start না থাকে, স্কিপ করুন
+        if (!task.start) return;
+        // সময় ফরম্যাট ঠিক করুন (ধরে নিচ্ছি task.start "HH:MM" ফরম্যাটে আছে)
+        const taskStart = task.start.trim();
+        if (!task.completed && taskStart === currentTime) {
+          new Notification('⏰ Task Reminder', {
+            body: `It's time to start: ${task.title}`,
+            icon: '/favicon.ico' // আপনার ফেভিকন পাথ
+          });
+        }
+      });
+    };
+
+    const interval = setInterval(checkUpcomingTasks, 30000); // প্রতি ৩০ সেকেন্ডে চেক
+    return () => clearInterval(interval);
+  }, [notificationsEnabled, notificationPermission, timeBlocks]);
+
   // ---------- টাইমার ইফেক্ট ----------
   useEffect(() => {
     let interval;
@@ -86,23 +150,46 @@ const ActivityLog = () => {
     return () => clearInterval(interval);
   }, [timer, activeTimer]);
 
+  // ---------- পরিসংখ্যান গণনা (আজ, গতকাল, সপ্তাহ) ----------
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const weekAgoStr = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+
+    let todayCount = 0;
+    let yesterdayCount = 0;
+    let weekCount = 0;
+
+    timeBlocks.forEach(block => {
+      if (block.completed && block.completedDate) {
+        if (block.completedDate === todayStr) todayCount++;
+        if (block.completedDate === yesterdayStr) yesterdayCount++;
+        if (block.completedDate >= weekAgoStr) weekCount++;
+      }
+    });
+
+    setTodayCompleted(todayCount);
+    setYesterdayCompleted(yesterdayCount);
+    setWeekCompleted(weekCount);
+  }, [timeBlocks]);
+
   // ---------- কনস্ট্যান্ট ----------
   const categories = [
-    { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700', borderColor: 'border-blue-200', bgGradient: 'from-blue-500 to-blue-600' },
-    { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700', borderColor: 'border-red-200', bgGradient: 'from-red-500 to-red-600' },
-    { id: 'learning', label: 'Learning', icon: BookOpen, color: 'bg-green-100 text-green-700', borderColor: 'border-green-200', bgGradient: 'from-green-500 to-green-600' },
-    { id: 'personal', label: 'Personal', icon: Home, color: 'bg-purple-100 text-purple-700', borderColor: 'border-purple-200', bgGradient: 'from-purple-500 to-purple-600' },
-    { id: 'social', label: 'Social', icon: Users, color: 'bg-pink-100 text-pink-700', borderColor: 'border-pink-200', bgGradient: 'from-pink-500 to-pink-600' },
-    { id: 'fitness', label: 'Fitness', icon: Dumbbell, color: 'bg-orange-100 text-orange-700', borderColor: 'border-orange-200', bgGradient: 'from-orange-500 to-orange-600' },
-    { id: 'creative', label: 'Creative', icon: Palette, color: 'bg-cyan-100 text-cyan-700', borderColor: 'border-cyan-200', bgGradient: 'from-cyan-500 to-cyan-600' },
-    { id: 'finance', label: 'Finance', icon: DollarSign, color: 'bg-emerald-100 text-emerald-700', borderColor: 'border-emerald-200', bgGradient: 'from-emerald-500 to-emerald-600' }
+    { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700', borderColor: 'border-blue-200' },
+    { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700', borderColor: 'border-red-200' },
+    { id: 'learning', label: 'Learning', icon: BookOpen, color: 'bg-green-100 text-green-700', borderColor: 'border-green-200' },
+    { id: 'personal', label: 'Personal', icon: Home, color: 'bg-purple-100 text-purple-700', borderColor: 'border-purple-200' },
+    { id: 'social', label: 'Social', icon: Users, color: 'bg-pink-100 text-pink-700', borderColor: 'border-pink-200' },
+    { id: 'fitness', label: 'Fitness', icon: Dumbbell, color: 'bg-orange-100 text-orange-700', borderColor: 'border-orange-200' },
+    { id: 'creative', label: 'Creative', icon: Palette, color: 'bg-cyan-100 text-cyan-700', borderColor: 'border-cyan-200' },
+    { id: 'finance', label: 'Finance', icon: DollarSign, color: 'bg-emerald-100 text-emerald-700', borderColor: 'border-emerald-200' }
   ];
 
   const priorities = [
-    { id: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700', borderColor: 'border-gray-200', icon: ChevronDown, bgGradient: 'from-gray-500 to-gray-600' },
-    { id: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-700', borderColor: 'border-yellow-200', icon: ChevronUp, bgGradient: 'from-yellow-500 to-yellow-600' },
-    { id: 'high', label: 'High', color: 'bg-orange-100 text-orange-700', borderColor: 'border-orange-200', icon: AlertCircle, bgGradient: 'from-orange-500 to-orange-600' },
-    { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700', borderColor: 'border-red-200', icon: Zap, bgGradient: 'from-red-500 to-red-600' }
+    { id: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700', borderColor: 'border-gray-200', icon: ChevronDown },
+    { id: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-700', borderColor: 'border-yellow-200', icon: ChevronUp },
+    { id: 'high', label: 'High', color: 'bg-orange-100 text-orange-700', borderColor: 'border-orange-200', icon: AlertCircle },
+    { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700', borderColor: 'border-red-200', icon: Zap }
   ];
 
   // ---------- হেল্পার ফাংশন ----------
@@ -193,11 +280,7 @@ const ActivityLog = () => {
 
   // ---------- এক্সপোর্ট/ইম্পোর্ট ----------
   const exportData = () => {
-    const data = {
-      version: '2.0',
-      exportDate: new Date().toISOString(),
-      timeBlocks
-    };
+    const data = { version: '2.0', exportDate: new Date().toISOString(), timeBlocks };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -229,10 +312,9 @@ const ActivityLog = () => {
     reader.readAsText(file);
   };
 
-  // ---------- রেন্ডার ----------
   return (
     <div className="space-y-6">
-      {/* ----- হেডার – গ্রিটিং, তারিখ, এক্সপোর্ট/ইম্পোর্ট ----- */}
+      {/* হেডার */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -242,31 +324,34 @@ const ActivityLog = () => {
           </div>
           <p className="text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-2">
             <Calendar size={16} className="text-blue-500" />
-            {new Date().toLocaleDateString('en-US', { 
-              weekday: 'long', 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
+            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
         <div className="flex gap-2">
+          {/* নোটিফিকেশন টগল */}
           <button
-            onClick={exportData}
-            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+            onClick={toggleNotifications}
+            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all ${
+              notificationsEnabled
+                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
+                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+            }`}
+            title={notificationsEnabled ? 'Disable notifications' : 'Enable notifications'}
           >
-            <Download size={16} />
-            Export
+            {notificationsEnabled ? <Bell size={16} /> : <BellOff size={16} />}
+            {notificationsEnabled ? 'On' : 'Off'}
+          </button>
+          <button onClick={exportData} className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all">
+            <Download size={16} /> Export
           </button>
           <label className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer">
-            <Upload size={16} />
-            Import
+            <Upload size={16} /> Import
             <input type="file" accept=".json" onChange={importData} className="hidden" />
           </label>
         </div>
       </div>
 
-      {/* ----- লাইভ টাইমার (যখন কোনো টাস্কে টাইমার চালু) ----- */}
+      {/* লাইভ টাইমার */}
       {timer && activeTimer && (
         <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl p-6 text-white shadow-2xl border border-white/20 backdrop-blur-sm">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -284,19 +369,15 @@ const ActivityLog = () => {
                 </div>
               </div>
             </div>
-            <button
-              onClick={stopTimer}
-              className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30"
-            >
-              <StopCircle size={20} />
-              Stop Timer
+            <button onClick={stopTimer} className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30">
+              <StopCircle size={20} /> Stop Timer
             </button>
           </div>
         </div>
       )}
 
-      {/* ----- পরিসংখ্যান কার্ড ----- */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* পরিসংখ্যান কার্ড */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
             <div>
@@ -311,11 +392,46 @@ const ActivityLog = () => {
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Completed</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Completed Today</p>
               <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{completed}</p>
             </div>
             <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
               <CheckCircle className="text-green-600 dark:text-green-400" size={24} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Completed Yesterday</p>
+              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-1">{yesterdayCompleted}</p>
+            </div>
+            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
+              <Calendar className="text-purple-600 dark:text-purple-400" size={24} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">This Week</p>
+              <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">{weekCompleted}</p>
+            </div>
+            <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
+              <TrendingUp className="text-indigo-600 dark:text-indigo-400" size={24} />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Daily Avg (Week)</p>
+              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                {weekCompleted > 0 ? (weekCompleted / 7).toFixed(1) : '0'}
+              </p>
+            </div>
+            <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
+              <Award className="text-amber-600 dark:text-amber-400" size={24} />
             </div>
           </div>
         </div>
@@ -330,22 +446,55 @@ const ActivityLog = () => {
             </div>
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Est. Focus Time</p>
-              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-1">
-                {totalEstimatedHours > 0 ? `${totalEstimatedHours}h` : ''}{totalEstimatedRemainMinutes > 0 ? `${totalEstimatedRemainMinutes}m` : '0m'}
-              </p>
-            </div>
-            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
-              <TrendingUp className="text-purple-600 dark:text-purple-400" size={24} />
-            </div>
-          </div>
+      </div>
+
+      {/* পারফরম্যান্স ফিডব্যাক */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+            <Sun size={18} className="text-yellow-500" /> Today's Performance
+          </h4>
+          <p className="text-lg text-gray-800 dark:text-gray-200">
+            {total === 0 
+              ? "No tasks scheduled today. Add some tasks to get started!"
+              : completionRate >= 80 ? "🔥 Excellent! You're crushing it today!"
+              : completionRate >= 50 ? "👍 Good job! Keep going."
+              : completionRate >= 20 ? "👌 You're making progress. Try to finish more tasks."
+              : "😐 You haven't completed many tasks yet. Stay focused!"
+            }
+          </p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+            <Calendar size={18} className="text-blue-500" /> Compared to Yesterday
+          </h4>
+          <p className="text-lg text-gray-800 dark:text-gray-200">
+            {yesterdayCompleted === 0 && completed === 0
+              ? "You haven't completed any tasks in the last two days."
+              : yesterdayCompleted > completed
+                ? `📉 You completed more tasks yesterday (${yesterdayCompleted}) than today (${completed}). Let's pick up the pace!`
+                : yesterdayCompleted < completed
+                  ? `📈 Great improvement! Today you've completed ${completed} tasks vs ${yesterdayCompleted} yesterday.`
+                  : `⚖️ You're consistent! Both days you completed ${completed} tasks.`
+            }
+          </p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+            <TrendingUp size={18} className="text-indigo-500" /> This Week's Performance
+          </h4>
+          <p className="text-lg text-gray-800 dark:text-gray-200">
+            {weekCompleted === 0 
+              ? "You haven't completed any tasks this week. Start now!"
+              : weekCompleted >= 20 ? `🏆 Amazing! You've completed ${weekCompleted} tasks this week.`
+              : weekCompleted >= 10 ? `👍 Good progress: ${weekCompleted} tasks done this week.`
+              : `📝 You've completed ${weekCompleted} tasks this week. Aim for more!`
+            }
+          </p>
         </div>
       </div>
 
-      {/* ----- প্রোগ্রেস বার ও মোটিভেশন ----- */}
+      {/* Today's Progress Bar */}
       {total > 0 && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-100 dark:border-blue-800/50">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -360,40 +509,31 @@ const ActivityLog = () => {
                 </p>
               </div>
             </div>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {completionRate}%
-            </div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{completionRate}%</div>
           </div>
           <div className="mt-4 h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
-              style={{ width: `${completionRate}%` }}
-            />
+            <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500" style={{ width: `${completionRate}%` }} />
           </div>
-          {completionRate === 100 ? (
-            <p className="mt-3 text-green-600 dark:text-green-400 font-medium flex items-center gap-1">
-              <CheckCircle size={16} /> Great job! All tasks completed for today. 🎉
-            </p>
-          ) : (
-            <p className="mt-3 text-gray-600 dark:text-gray-400 text-sm">
-              {pending === 0 ? '' : `${pending} task${pending > 1 ? 's' : ''} remaining. Keep going! 💪`}
-            </p>
-          )}
+          <div className="mt-4 flex flex-wrap gap-3 text-sm">
+            {yesterdayCompleted > 0 && (
+              <span className="text-gray-600 dark:text-gray-400">🔙 Yesterday: {yesterdayCompleted} task{yesterdayCompleted > 1 ? 's' : ''}</span>
+            )}
+            {weekCompleted > 0 && (
+              <span className="text-gray-600 dark:text-gray-400">📊 Last 7 days: {weekCompleted} tasks</span>
+            )}
+            {pending > 0 && (
+              <span className="text-gray-600 dark:text-gray-400">{pending} task{pending > 1 ? 's' : ''} remaining. Keep going! 💪</span>
+            )}
+          </div>
         </div>
       )}
 
-      {/* ----- টাস্ক লিস্ট – সুন্দর কার্ড ডিজাইন ----- */}
+      {/* টাস্ক লিস্ট */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Clock size={20} className="text-blue-500" />
-            Today's Schedule
+            <Clock size={20} className="text-blue-500" /> Today's Schedule
           </h3>
-          {todayTasks.length > 0 && (
-            <span className="text-sm text-gray-500 dark:text-gray-400">
-              Sorted by time
-            </span>
-          )}
         </div>
 
         {todayTasks.length === 0 ? (
@@ -401,16 +541,10 @@ const ActivityLog = () => {
             <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
               <Calendar className="w-12 h-12 text-blue-500 dark:text-blue-400" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-              No tasks scheduled for today
-            </h3>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No tasks scheduled for today</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
               Go to <span className="font-medium text-blue-600 dark:text-blue-400">Time Blocks</span> tab to plan your day.
             </p>
-            <div className="inline-flex gap-2 text-sm text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-full">
-              <Clock size={16} />
-              Your day is free – relax or add some tasks!
-            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
@@ -421,20 +555,14 @@ const ActivityLog = () => {
               const PriorityIcon = priority?.icon || ChevronUp;
               const isActiveTimer = activeTimer === task.id;
               const duration = calculateDuration(task.start, task.end);
-              const isOverdue = !task.completed && new Date(`${new Date().toISOString().split('T')[0]}T${task.start}`) < new Date();
+              const isOverdue = !task.completed && task.start && new Date(`${new Date().toISOString().split('T')[0]}T${task.start}`) < new Date();
 
               return (
-                <div
-                  key={task.id}
-                  className={`group relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border transition-all duration-300 hover:shadow-xl ${
-                    task.completed
-                      ? 'border-green-200 dark:border-green-800/50 bg-gradient-to-r from-green-50/50 to-transparent dark:from-green-900/10'
-                      : isOverdue
-                      ? 'border-red-200 dark:border-red-800/50 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-900/5'
-                      : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800/50'
-                  }`}
-                >
-                  {/* রিয়েল-টাইম ইন্ডিকেটর (যদি টাইমার চালু) */}
+                <div key={task.id} className={`group relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border transition-all duration-300 hover:shadow-xl ${
+                  task.completed ? 'border-green-200 dark:border-green-800/50 bg-gradient-to-r from-green-50/50 to-transparent dark:from-green-900/10'
+                  : isOverdue ? 'border-red-200 dark:border-red-800/50 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-900/5'
+                  : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800/50'
+                }`}>
                   {isActiveTimer && (
                     <div className="absolute -top-3 -right-3">
                       <div className="relative">
@@ -445,61 +573,38 @@ const ActivityLog = () => {
                       </div>
                     </div>
                   )}
-
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
-                    {/* কমপ্লিট টগল – বড় ও সুন্দর */}
-                    <button
-                      onClick={() => toggleComplete(task.id)}
-                      className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
-                        task.completed
-                          ? 'bg-green-500 border-green-500 text-white shadow-md'
-                          : 'border-gray-300 dark:border-gray-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'
-                      }`}
-                      title={task.completed ? "Mark as incomplete" : "Mark as complete"}
-                    >
+                    <button onClick={() => toggleComplete(task.id)} className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                      task.completed ? 'bg-green-500 border-green-500 text-white shadow-md'
+                      : 'border-gray-300 dark:border-gray-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'
+                    }`}>
                       {task.completed && <CheckCircle size={16} />}
                     </button>
-
-                    {/* টাস্কের বিস্তারিত তথ্য */}
                     <div className="flex-1">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                         <div className="space-y-2">
-                          {/* টাইটেল ও ব্যাজ */}
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4 className={`text-lg font-semibold ${
-                              task.completed 
-                                ? 'line-through text-gray-500 dark:text-gray-400' 
-                                : 'text-gray-900 dark:text-white'
+                              task.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'
                             }`}>
                               {task.title}
                             </h4>
-                            
-                            {/* প্রায়োরিটি ব্যাজ */}
                             {priority && (
                               <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${priority.color} bg-opacity-20 border ${priority.borderColor}`}>
-                                <PriorityIcon size={12} />
-                                {priority.label}
+                                <PriorityIcon size={12} /> {priority.label}
                               </span>
                             )}
-                            
-                            {/* ক্যাটাগরি ব্যাজ */}
                             {category && (
                               <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${category.color} bg-opacity-20 border ${category.borderColor}`}>
-                                <CategoryIcon size={12} />
-                                {category.label}
+                                <CategoryIcon size={12} /> {category.label}
                               </span>
                             )}
-
-                            {/* ওভারডিউ ব্যাজ */}
                             {isOverdue && !task.completed && (
                               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
-                                <AlertCircle size={12} />
-                                Overdue
+                                <AlertCircle size={12} /> Overdue
                               </span>
                             )}
                           </div>
-
-                          {/* সময় ও ডিউরেশন */}
                           <div className="flex items-center gap-4 text-sm">
                             <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
                               <Clock size={14} className="text-blue-500" />
@@ -507,55 +612,25 @@ const ActivityLog = () => {
                               <span className="text-gray-400 dark:text-gray-500">({duration.display})</span>
                             </div>
                           </div>
-
-                          {/* ডেসক্রিপশন */}
                           {task.description && (
                             <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700">
                               {task.description}
                             </p>
                           )}
-
-                          {/* ট্যাগস */}
                           {task.tags && task.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1.5">
                               {task.tags.map((tag, idx) => (
-                                <span
-                                  key={idx}
-                                  className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs flex items-center gap-1 border border-gray-200 dark:border-gray-600"
-                                >
-                                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span>
-                                  {tag}
+                                <span key={idx} className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs flex items-center gap-1 border border-gray-200 dark:border-gray-600">
+                                  <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> {tag}
                                 </span>
                               ))}
                             </div>
                           )}
-
-                          {/* প্রোগ্রেস বার – যদি প্রোগ্রেস ০-৯৯% এবং কমপ্লিট না হয় */}
-                          {task.progress > 0 && task.progress < 100 && !task.completed && (
-                            <div className="mt-3 max-w-xs">
-                              <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 mb-1">
-                                <span>Progress</span>
-                                <span className="font-medium">{task.progress}%</span>
-                              </div>
-                              <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                                <div
-                                  className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full"
-                                  style={{ width: `${task.progress}%` }}
-                                />
-                              </div>
-                            </div>
-                          )}
                         </div>
-
-                        {/* টাইমার বাটন – সুন্দর ও প্রমিনেন্ট */}
                         <div className="flex items-center gap-2 mt-2 md:mt-0">
                           {!isActiveTimer ? (
-                            <button
-                              onClick={() => startTimer(task)}
-                              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
-                            >
-                              <Play size={16} />
-                              Start Timer
+                            <button onClick={() => startTimer(task)} className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all">
+                              <Play size={16} /> Start Timer
                             </button>
                           ) : (
                             <div className="flex items-center gap-2">
@@ -563,11 +638,7 @@ const ActivityLog = () => {
                                 <Timer size={16} className="animate-pulse" />
                                 <span className="font-mono">{formatTime(timerSeconds)}</span>
                               </div>
-                              <button
-                                onClick={stopTimer}
-                                className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-all"
-                                title="Stop timer"
-                              >
+                              <button onClick={stopTimer} className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-all" title="Stop timer">
                                 <StopCircle size={20} />
                               </button>
                             </div>
@@ -583,35 +654,22 @@ const ActivityLog = () => {
         )}
       </div>
 
-      {/* ----- ফুটার – উইশ ও টোটাল টাইম ----- */}
+      {/* ফুটার */}
       {todayTasks.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 text-center">
           <p className="text-gray-700 dark:text-gray-300 flex items-center justify-center gap-2">
             {completionRate === 100 ? (
-              <>
-                <Award className="text-yellow-500" size={20} />
-                <span className="font-medium">Excellent! You've crushed all your tasks today! 🌟</span>
-              </>
+              <><Award className="text-yellow-500" size={20} /> <span className="font-medium">Excellent! You've crushed all your tasks today! 🌟</span></>
             ) : completionRate > 70 ? (
-              <>
-                <TrendingUp className="text-green-500" size={20} />
-                <span className="font-medium">Almost there! Keep up the great work! 🚀</span>
-              </>
+              <><TrendingUp className="text-green-500" size={20} /> <span className="font-medium">Almost there! Keep up the great work! 🚀</span></>
             ) : completionRate > 30 ? (
-              <>
-                <Clock className="text-blue-500" size={20} />
-                <span className="font-medium">You're making progress – stay focused! 💪</span>
-              </>
+              <><Clock className="text-blue-500" size={20} /> <span className="font-medium">You're making progress – stay focused! 💪</span></>
             ) : (
-              <>
-                <Sun className="text-yellow-500" size={20} />
-                <span className="font-medium">A fresh start – you got this! ✨</span>
-              </>
+              <><Sun className="text-yellow-500" size={20} /> <span className="font-medium">A fresh start – you got this! ✨</span></>
             )}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-            Estimated total focus time: {totalEstimatedHours > 0 ? `${totalEstimatedHours}h ` : ''}{totalEstimatedRemainMinutes > 0 ? `${totalEstimatedRemainMinutes}m` : ''} • 
-            Created with ❤️ for productivity
+            Estimated total focus time: {totalEstimatedHours > 0 ? `${totalEstimatedHours}h ` : ''}{totalEstimatedRemainMinutes > 0 ? `${totalEstimatedRemainMinutes}m` : ''}
           </p>
         </div>
       )}
