@@ -115,7 +115,16 @@ const History = ({ language = 'bn' }) => {
   const [dateRange, setDateRange] = useState('30');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterPriority, setFilterPriority] = useState('all');
-  const [viewMode, setViewMode] = useState('list'); // ডিফল্ট লিস্ট ভিউ
+  // ✅ লোকাল স্টোরেজ থেকে ভিউ মোড লোড করা
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = localStorage.getItem('historyViewMode');
+    return saved === 'grid' ? 'grid' : 'list'; // ডিফল্ট 'list'
+  });
+
+  // ---------- ভিউ মোড পরিবর্তন হলে লোকাল স্টোরেজে সেভ ----------
+  useEffect(() => {
+    localStorage.setItem('historyViewMode', viewMode);
+  }, [viewMode]);
 
   // ---------- ডাটা লোড ----------
   const loadData = () => {

@@ -25,33 +25,60 @@ import {
   TrendingUp,
   Award,
   Sun,
-  Moon,
   Bell,
-  BellOff
+  BellOff,
+  Grid,
+  List,
+  Filter
 } from 'lucide-react';
+
+// ---------- আপনার ডিফল্ট সেটিংস এখানে পরিবর্তন করুন ----------
+const DEFAULT_GRID_COLUMNS = 3;        // আপনি চাইলে 2, 3, বা 4 সেট করতে পারেন
+const DEFAULT_VIEW_MODE = 'list';      // 'list' বা 'grid'
+const DEFAULT_FILTER_STATUS = 'all';
+const DEFAULT_FILTER_CATEGORY = 'all';
+const DEFAULT_SORT_BY = 'time';
+// ------------------------------------------------------------
 
 const ActivityLog = () => {
   const [timeBlocks, setTimeBlocks] = useState([]);
   const [timer, setTimer] = useState(null);
   const [activeTimer, setActiveTimer] = useState(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
-  
-  // আমরা selectedDay ব্যবহার করছি না, কারণ আমরা সব টাস্ক দেখাতে চাই (শিডিউল অনুযায়ী ফিল্টার না করে)
-  // আপনি চাইলে ফিল্টার চালু করতে পারেন, তবে এখন সব টাস্ক দেখানো হচ্ছে পরীক্ষার জন্য।
+  const [viewMode, setViewMode] = useState(() => {
+    const saved = localStorage.getItem('activityLogViewMode');
+    return saved || DEFAULT_VIEW_MODE;
+  });
+  const [filterStatus, setFilterStatus] = useState(() => {
+    const saved = localStorage.getItem('filterStatus');
+    return saved || DEFAULT_FILTER_STATUS;
+  });
+  const [filterCategory, setFilterCategory] = useState(() => {
+    const saved = localStorage.getItem('filterCategory');
+    return saved || DEFAULT_FILTER_CATEGORY;
+  });
+  const [sortBy, setSortBy] = useState(() => {
+    const saved = localStorage.getItem('sortBy');
+    return saved || DEFAULT_SORT_BY;
+  });
+  const [gridColumns, setGridColumns] = useState(() => {
+    const saved = localStorage.getItem('activityLogGridColumns');
+    return saved ? parseInt(saved, 10) : DEFAULT_GRID_COLUMNS;
+  });
 
-  // নোটিফিকেশন স্টেট
+  // Notifications state
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     const saved = localStorage.getItem('notificationsEnabled');
     return saved ? JSON.parse(saved) : false;
   });
   const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
 
-  // পরিসংখ্যান স্টেট
+  // Statistics state
   const [todayCompleted, setTodayCompleted] = useState(0);
   const [yesterdayCompleted, setYesterdayCompleted] = useState(0);
   const [weekCompleted, setWeekCompleted] = useState(0);
 
-  // লোকালস্টোরেজ থেকে টাইম ব্লক লোড
+  // Load time blocks from localStorage
   const loadTimeBlocks = () => {
     try {
       const saved = localStorage.getItem('advancedTimeBlocks');
@@ -72,11 +99,32 @@ const ActivityLog = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // নোটিফিকেশন সেটিংস
+  // Persist settings
+  useEffect(() => {
+    localStorage.setItem('activityLogViewMode', viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem('filterStatus', filterStatus);
+  }, [filterStatus]);
+
+  useEffect(() => {
+    localStorage.setItem('filterCategory', filterCategory);
+  }, [filterCategory]);
+
+  useEffect(() => {
+    localStorage.setItem('sortBy', sortBy);
+  }, [sortBy]);
+
+  useEffect(() => {
+    localStorage.setItem('activityLogGridColumns', gridColumns.toString());
+  }, [gridColumns]);
+
   useEffect(() => {
     localStorage.setItem('notificationsEnabled', JSON.stringify(notificationsEnabled));
   }, [notificationsEnabled]);
 
+  // Request notification permission
   const requestNotificationPermission = async () => {
     if (notificationPermission === 'granted') return;
     try {
@@ -100,7 +148,7 @@ const ActivityLog = () => {
     }
   };
 
-  // টাস্ক রিমাইন্ডার চেক
+  // Task reminder check
   useEffect(() => {
     if (!notificationsEnabled || notificationPermission !== 'granted') return;
 
@@ -122,7 +170,7 @@ const ActivityLog = () => {
     return () => clearInterval(interval);
   }, [notificationsEnabled, notificationPermission, timeBlocks]);
 
-  // টাইমার ইফেক্ট
+  // Timer effect
   useEffect(() => {
     let interval;
     if (timer && activeTimer) {
@@ -142,7 +190,7 @@ const ActivityLog = () => {
     return () => clearInterval(interval);
   }, [timer, activeTimer]);
 
-  // পরিসংখ্যান গণনা (আজ, গতকাল, সপ্তাহ)
+  // Calculate statistics
   useEffect(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -165,7 +213,7 @@ const ActivityLog = () => {
     setWeekCompleted(weekCount);
   }, [timeBlocks]);
 
-  // কনস্ট্যান্ট
+  // Constants
   const categories = [
     { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700', borderColor: 'border-blue-200' },
     { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700', borderColor: 'border-red-200' },
@@ -184,7 +232,7 @@ const ActivityLog = () => {
     { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700', borderColor: 'border-red-200', icon: Zap }
   ];
 
-  // হেল্পার ফাংশন
+  // Helper functions
   const formatTime = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -203,7 +251,6 @@ const ActivityLog = () => {
     return { total, hours, minutes, display: hours > 0 ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}` : `${minutes}m` };
   };
 
-  // টাস্ক টগল কমপ্লিট (এখানে completedDate সঠিকভাবে সেট করা হয়েছে)
   const toggleComplete = (id) => {
     const now = new Date().toISOString().split('T')[0];
     const updatedBlocks = timeBlocks.map(block =>
@@ -222,7 +269,6 @@ const ActivityLog = () => {
     toast.success(task.completed ? 'Task completed! 🎉' : 'Task uncompleted');
   };
 
-  // টাইমার কন্ট্রোল
   const startTimer = (block) => {
     const duration = calculateDuration(block.start, block.end);
     const totalSeconds = duration.total * 60;
@@ -238,7 +284,32 @@ const ActivityLog = () => {
     toast.info('Timer stopped');
   };
 
-  // স্ট্যাটস – আমরা সব টাস্ক দেখাচ্ছি (আজকের জন্য ফিল্টার করছি না, কারণ আপনি চান সব টাস্ক দেখাতে)
+  // Filtering and sorting
+  const getFilteredTasks = () => {
+    let filtered = timeBlocks;
+    if (filterStatus === 'completed') filtered = filtered.filter(t => t.completed);
+    else if (filterStatus === 'pending') filtered = filtered.filter(t => !t.completed);
+    if (filterCategory !== 'all') filtered = filtered.filter(t => t.category === filterCategory);
+    return filtered;
+  };
+
+  const getSortedTasks = (tasks) => {
+    const sorted = [...tasks];
+    if (sortBy === 'time') {
+      sorted.sort((a, b) => (a.start || '').localeCompare(b.start || ''));
+    } else if (sortBy === 'priority') {
+      const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+      sorted.sort((a, b) => (priorityOrder[a.priority] ?? 4) - (priorityOrder[b.priority] ?? 4));
+    } else if (sortBy === 'title') {
+      sorted.sort((a, b) => a.title.localeCompare(b.title));
+    }
+    return sorted;
+  };
+
+  const filteredTasks = getFilteredTasks();
+  const displayedTasks = getSortedTasks(filteredTasks);
+
+  // Stats
   const total = timeBlocks.length;
   const completed = timeBlocks.filter(t => t.completed).length;
   const pending = total - completed;
@@ -251,7 +322,6 @@ const ActivityLog = () => {
   const totalEstimatedHours = Math.floor(totalEstimatedMinutes / 60);
   const totalEstimatedRemainMinutes = totalEstimatedMinutes % 60;
 
-  // গ্রিটিং
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning ☀️';
@@ -259,7 +329,6 @@ const ActivityLog = () => {
     return 'Good Evening 🌙';
   };
 
-  // এক্সপোর্ট/ইম্পোর্ট
   const exportData = () => {
     const data = { version: '2.0', exportDate: new Date().toISOString(), timeBlocks };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -295,7 +364,7 @@ const ActivityLog = () => {
 
   return (
     <div className="space-y-6">
-      {/* হেডার */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -309,7 +378,6 @@ const ActivityLog = () => {
           </p>
         </div>
         <div className="flex gap-2">
-          {/* নোটিফিকেশন টগল */}
           <button
             onClick={toggleNotifications}
             className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all ${
@@ -322,7 +390,44 @@ const ActivityLog = () => {
             {notificationsEnabled ? <Bell size={16} /> : <BellOff size={16} />}
             {notificationsEnabled ? 'On' : 'Off'}
           </button>
-          <button onClick={exportData} className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all">
+
+          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 rounded ${viewMode === 'list' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
+              title="List view"
+            >
+              <List size={20} />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
+              title="Grid view"
+            >
+              <Grid size={20} />
+            </button>
+          </div>
+
+          {viewMode === 'grid' && (
+            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+              {[2, 3, 4].map(cols => (
+                <button
+                  key={cols}
+                  onClick={() => setGridColumns(cols)}
+                  className={`px-3 py-1 rounded text-sm font-medium transition ${
+                    gridColumns === cols ? 'bg-white dark:bg-gray-600 shadow' : ''
+                  }`}
+                >
+                  {cols} cols
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={exportData}
+            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+          >
             <Download size={16} /> Export
           </button>
           <label className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer">
@@ -332,7 +437,70 @@ const ActivityLog = () => {
         </div>
       </div>
 
-      {/* লাইভ টাইমার */}
+      {/* Filters and Sorting */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-wrap items-center gap-2">
+          <Filter size={18} className="text-gray-500 dark:text-gray-400" />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 mr-2">Status:</span>
+          <div className="flex gap-1">
+            <button
+              onClick={() => setFilterStatus('all')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+                filterStatus === 'all'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setFilterStatus('completed')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+                filterStatus === 'completed'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+              }`}
+            >
+              Completed
+            </button>
+            <button
+              onClick={() => setFilterStatus('pending')}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+                filterStatus === 'pending'
+                  ? 'bg-yellow-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+              }`}
+            >
+              Pending
+            </button>
+          </div>
+
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+          >
+            <option value="all">All Categories</option>
+            {categories.map(cat => (
+              <option key={cat.id} value={cat.id}>{cat.label}</option>
+            ))}
+          </select>
+
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+          >
+            <option value="time">Sort by Time</option>
+            <option value="priority">Sort by Priority</option>
+            <option value="title">Sort by Title</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Live Timer */}
       {timer && activeTimer && (
         <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl p-6 text-white shadow-2xl border border-white/20 backdrop-blur-sm">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
@@ -350,14 +518,17 @@ const ActivityLog = () => {
                 </div>
               </div>
             </div>
-            <button onClick={stopTimer} className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30">
+            <button
+              onClick={stopTimer}
+              className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30"
+            >
               <StopCircle size={20} /> Stop Timer
             </button>
           </div>
         </div>
       )}
 
-      {/* পরিসংখ্যান কার্ড */}
+      {/* Statistics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
@@ -429,7 +600,7 @@ const ActivityLog = () => {
         </div>
       </div>
 
-      {/* পারফরম্যান্স ফিডব্যাক */}
+      {/* Performance Feedback */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-lg border border-gray-200 dark:border-gray-700">
           <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
@@ -495,8 +666,10 @@ const ActivityLog = () => {
             </div>
           </div>
           <div className="mt-4 h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500" 
-                 style={{ width: `${(todayCompleted / total) * 100}%` }} />
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+              style={{ width: `${(todayCompleted / total) * 100}%` }}
+            />
           </div>
           <div className="mt-4 flex flex-wrap gap-3 text-sm">
             {yesterdayCompleted > 0 && (
@@ -512,27 +685,35 @@ const ActivityLog = () => {
         </div>
       )}
 
-      {/* টাস্ক লিস্ট */}
+      {/* Task List/Grid */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Clock size={20} className="text-blue-500" /> All Tasks
+            <Clock size={20} className="text-blue-500" /> 
+            {filterStatus === 'all' ? 'All Tasks' : filterStatus === 'completed' ? 'Completed Tasks' : 'Pending Tasks'}
+            {filterCategory !== 'all' && ` • ${categories.find(c => c.id === filterCategory)?.label}`}
           </h3>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {displayedTasks.length} tasks
+          </span>
         </div>
 
-        {timeBlocks.length === 0 ? (
+        {displayedTasks.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center shadow-lg border border-gray-100 dark:border-gray-700">
             <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
               <Calendar className="w-12 h-12 text-blue-500 dark:text-blue-400" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No tasks yet</h3>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              No tasks match your filters
+            </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Go to <span className="font-medium text-blue-600 dark:text-blue-400">Time Blocks</span> tab to create tasks.
+              Try changing the status or category filter.
             </p>
           </div>
-        ) : (
+        ) : viewMode === 'list' ? (
+          // List View
           <div className="grid grid-cols-1 gap-4">
-            {timeBlocks.map(task => {
+            {displayedTasks.map(task => {
               const category = categories.find(c => c.id === task.category);
               const priority = priorities.find(p => p.id === task.priority);
               const CategoryIcon = category?.icon || Briefcase;
@@ -542,11 +723,16 @@ const ActivityLog = () => {
               const isOverdue = !task.completed && task.start && new Date(`${new Date().toISOString().split('T')[0]}T${task.start}`) < new Date();
 
               return (
-                <div key={task.id} className={`group relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border transition-all duration-300 hover:shadow-xl ${
-                  task.completed ? 'border-green-200 dark:border-green-800/50 bg-gradient-to-r from-green-50/50 to-transparent dark:from-green-900/10'
-                  : isOverdue ? 'border-red-200 dark:border-red-800/50 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-900/5'
-                  : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800/50'
-                }`}>
+                <div
+                  key={task.id}
+                  className={`group relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border transition-all duration-300 hover:shadow-xl ${
+                    task.completed
+                      ? 'border-green-200 dark:border-green-800/50 bg-gradient-to-r from-green-50/50 to-transparent dark:from-green-900/10'
+                      : isOverdue
+                      ? 'border-red-200 dark:border-red-800/50 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-900/5'
+                      : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800/50'
+                  }`}
+                >
                   {isActiveTimer && (
                     <div className="absolute -top-3 -right-3">
                       <div className="relative">
@@ -558,28 +744,40 @@ const ActivityLog = () => {
                     </div>
                   )}
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
-                    <button onClick={() => toggleComplete(task.id)} className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
-                      task.completed ? 'bg-green-500 border-green-500 text-white shadow-md'
-                      : 'border-gray-300 dark:border-gray-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'
-                    }`}>
+                    <button
+                      onClick={() => toggleComplete(task.id)}
+                      className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                        task.completed
+                          ? 'bg-green-500 border-green-500 text-white shadow-md'
+                          : 'border-gray-300 dark:border-gray-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'
+                      }`}
+                    >
                       {task.completed && <CheckCircle size={16} />}
                     </button>
                     <div className="flex-1">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h4 className={`text-lg font-semibold ${
-                              task.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'
-                            }`}>
+                            <h4
+                              className={`text-lg font-semibold ${
+                                task.completed
+                                  ? 'line-through text-gray-500 dark:text-gray-400'
+                                  : 'text-gray-900 dark:text-white'
+                              }`}
+                            >
                               {task.title}
                             </h4>
                             {priority && (
-                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${priority.color} bg-opacity-20 border ${priority.borderColor}`}>
+                              <span
+                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${priority.color} bg-opacity-20 border ${priority.borderColor}`}
+                              >
                                 <PriorityIcon size={12} /> {priority.label}
                               </span>
                             )}
                             {category && (
-                              <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${category.color} bg-opacity-20 border ${category.borderColor}`}>
+                              <span
+                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${category.color} bg-opacity-20 border ${category.borderColor}`}
+                              >
                                 <CategoryIcon size={12} /> {category.label}
                               </span>
                             )}
@@ -592,7 +790,9 @@ const ActivityLog = () => {
                           <div className="flex items-center gap-4 text-sm">
                             <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
                               <Clock size={14} className="text-blue-500" />
-                              <span className="font-medium">{task.start || 'No time'} – {task.end || 'No time'}</span>
+                              <span className="font-medium">
+                                {task.start || 'No time'} – {task.end || 'No time'}
+                              </span>
                               {task.start && task.end && (
                                 <span className="text-gray-400 dark:text-gray-500">({duration.display})</span>
                               )}
@@ -606,7 +806,10 @@ const ActivityLog = () => {
                           {task.tags && task.tags.length > 0 && (
                             <div className="flex flex-wrap gap-1.5">
                               {task.tags.map((tag, idx) => (
-                                <span key={idx} className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs flex items-center gap-1 border border-gray-200 dark:border-gray-600">
+                                <span
+                                  key={idx}
+                                  className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs flex items-center gap-1 border border-gray-200 dark:border-gray-600"
+                                >
                                   <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> {tag}
                                 </span>
                               ))}
@@ -615,7 +818,10 @@ const ActivityLog = () => {
                         </div>
                         <div className="flex items-center gap-2 mt-2 md:mt-0">
                           {!isActiveTimer ? (
-                            <button onClick={() => startTimer(task)} className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all">
+                            <button
+                              onClick={() => startTimer(task)}
+                              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+                            >
                               <Play size={16} /> Start Timer
                             </button>
                           ) : (
@@ -624,7 +830,11 @@ const ActivityLog = () => {
                                 <Timer size={16} className="animate-pulse" />
                                 <span className="font-mono">{formatTime(timerSeconds)}</span>
                               </div>
-                              <button onClick={stopTimer} className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-all" title="Stop timer">
+                              <button
+                                onClick={stopTimer}
+                                className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-all"
+                                title="Stop timer"
+                              >
                                 <StopCircle size={20} />
                               </button>
                             </div>
@@ -637,25 +847,154 @@ const ActivityLog = () => {
               );
             })}
           </div>
+        ) : (
+          // Grid View with dynamic columns
+          <div
+            className="grid grid-cols-1 gap-4"
+            style={{
+              gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`
+            }}
+          >
+            {displayedTasks.map(task => {
+              const category = categories.find(c => c.id === task.category);
+              const priority = priorities.find(p => p.id === task.priority);
+              const CategoryIcon = category?.icon || Briefcase;
+              const PriorityIcon = priority?.icon || ChevronUp;
+              const isActiveTimer = activeTimer === task.id;
+              const duration = calculateDuration(task.start, task.end);
+              const isOverdue = !task.completed && task.start && new Date(`${new Date().toISOString().split('T')[0]}T${task.start}`) < new Date();
+
+              return (
+                <div
+                  key={task.id}
+                  className={`group relative bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md border transition-all duration-200 hover:shadow-lg ${
+                    task.completed
+                      ? 'border-green-200 dark:border-green-800/50 bg-gradient-to-r from-green-50/50 to-transparent dark:from-green-900/10'
+                      : isOverdue
+                      ? 'border-red-200 dark:border-red-800/50 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-900/5'
+                      : 'border-gray-200 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800/50'
+                  }`}
+                >
+                  {isActiveTimer && (
+                    <div className="absolute -top-2 -right-2">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-red-500 rounded-full animate-ping opacity-75"></div>
+                        <div className="relative flex items-center justify-center w-6 h-6 bg-red-500 rounded-full shadow-lg">
+                          <Timer className="w-3 h-3 text-white" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex flex-col h-full">
+                    <div className="flex items-start justify-between mb-2">
+                      <button
+                        onClick={() => toggleComplete(task.id)}
+                        className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                          task.completed
+                            ? 'bg-green-500 border-green-500 text-white shadow-md'
+                            : 'border-gray-300 dark:border-gray-600 hover:border-green-500'
+                        }`}
+                      >
+                        {task.completed && <CheckCircle size={14} />}
+                      </button>
+                      <div className="flex gap-1">
+                        {priority && (
+                          <span
+                            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${priority.color} bg-opacity-20 border ${priority.borderColor}`}
+                          >
+                            <PriorityIcon size={10} /> {priority.label}
+                          </span>
+                        )}
+                        {category && (
+                          <span
+                            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${category.color} bg-opacity-20 border ${category.borderColor}`}
+                          >
+                            <CategoryIcon size={10} /> {category.label}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <h4
+                      className={`text-base font-semibold mb-1 ${
+                        task.completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'
+                      }`}
+                    >
+                      {task.title}
+                    </h4>
+                    <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 mb-2">
+                      <Clock size={12} className="text-blue-400" />
+                      <span>
+                        {task.start || 'No time'} – {task.end || 'No time'}
+                      </span>
+                      {task.start && task.end && <span className="text-gray-400">({duration.display})</span>}
+                    </div>
+                    {isOverdue && !task.completed && (
+                      <div className="mb-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                        <AlertCircle size={12} /> Overdue
+                      </div>
+                    )}
+                    <div className="mt-auto flex justify-end">
+                      {!isActiveTimer ? (
+                        <button
+                          onClick={() => startTimer(task)}
+                          className="px-3 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition-all"
+                        >
+                          <Play size={12} /> Start
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <div className="px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm">
+                            <Timer size={12} className="animate-pulse" />
+                            <span className="font-mono text-xs">{formatTime(timerSeconds)}</span>
+                          </div>
+                          <button
+                            onClick={stopTimer}
+                            className="p-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200"
+                            title="Stop timer"
+                          >
+                            <StopCircle size={14} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
-      {/* ফুটার */}
+      {/* Footer */}
       {timeBlocks.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 text-center">
           <p className="text-gray-700 dark:text-gray-300 flex items-center justify-center gap-2">
             {completionRate === 100 ? (
-              <><Award className="text-yellow-500" size={20} /> <span className="font-medium">Excellent! You've crushed all your tasks! 🌟</span></>
+              <>
+                <Award className="text-yellow-500" size={20} />{' '}
+                <span className="font-medium">Excellent! You've crushed all your tasks! 🌟</span>
+              </>
             ) : completionRate > 70 ? (
-              <><TrendingUp className="text-green-500" size={20} /> <span className="font-medium">Almost there! Keep up the great work! 🚀</span></>
+              <>
+                <TrendingUp className="text-green-500" size={20} />{' '}
+                <span className="font-medium">Almost there! Keep up the great work! 🚀</span>
+              </>
             ) : completionRate > 30 ? (
-              <><Clock className="text-blue-500" size={20} /> <span className="font-medium">You're making progress – stay focused! 💪</span></>
+              <>
+                <Clock className="text-blue-500" size={20} />{' '}
+                <span className="font-medium">You're making progress – stay focused! 💪</span>
+              </>
             ) : (
-              <><Sun className="text-yellow-500" size={20} /> <span className="font-medium">A fresh start – you got this! ✨</span></>
+              <>
+                <Sun className="text-yellow-500" size={20} />{' '}
+                <span className="font-medium">A fresh start – you got this! ✨</span>
+              </>
             )}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-            Estimated total focus time: {totalEstimatedHours > 0 ? `${totalEstimatedHours}h ` : ''}{totalEstimatedRemainMinutes > 0 ? `${totalEstimatedRemainMinutes}m` : ''}
+            Estimated total focus time:{' '}
+            {totalEstimatedHours > 0 ? `${totalEstimatedHours}h ` : ''}
+            {totalEstimatedRemainMinutes > 0 ? `${totalEstimatedRemainMinutes}m` : ''}
           </p>
         </div>
       )}

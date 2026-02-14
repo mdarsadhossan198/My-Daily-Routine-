@@ -779,8 +779,8 @@ const Roadmap = () => {
         </div>
       </div>
 
-      {/* ---------- রোডম্যাপ সেকশনসমূহ ---------- */}
-      <div className="space-y-4">
+      {/* ---------- রোডম্যাপ সেকশনসমূহ (এখন গ্রিডে) ---------- */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {sections.map((section) => {
           const secStats = getSectionStats(section);
           const isExpanded = expandedSections[section.id];

@@ -342,7 +342,7 @@ const grammarSubtopics = {
 };
 
 // ============================================================
-// 8. MAIN COMPONENT – LearningRoadmap (সম্পূর্ণ পুনর্লিখিত)
+// 8. MAIN COMPONENT – LearningRoadmap (গ্রিড সিস্টেমসহ)
 // ============================================================
 const LearningRoadmap = () => {
   // ---------- State Declarations ----------
@@ -547,7 +547,7 @@ const LearningRoadmap = () => {
   }, [quranProgress]);
 
   // ==========================================================
-  // RENDER
+  // RENDER (with Grid Layouts)
   // ==========================================================
   return (
     <div className="space-y-6">
@@ -696,8 +696,8 @@ const LearningRoadmap = () => {
             </div>
           </div>
 
-          {/* Grammar Topics with Subtopics */}
-          <div className="space-y-3">
+          {/* Grammar Topics with Subtopics - now in GRID */}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {Object.entries(grammarSubtopics).map(([mainTopic, subtopics]) => {
               const completedCount = subtopics.filter(sub => grammarProgress[`${mainTopic}||${sub}`]).length;
               const totalCount = subtopics.length;
@@ -705,7 +705,7 @@ const LearningRoadmap = () => {
               const isExpanded = expandedGrammarMain[mainTopic] || false;
 
               return (
-                <div key={mainTopic} className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div key={mainTopic} className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden h-fit">
                   <div 
                     className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
                     onClick={() => setExpandedGrammarMain(prev => ({ ...prev, [mainTopic]: !prev[mainTopic] }))}
@@ -833,8 +833,8 @@ const LearningRoadmap = () => {
             />
           </div>
 
-          {/* Surah List */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4 max-h-[500px] overflow-y-auto">
+          {/* Surah List - now in GRID */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredSurahs.map((surah) => {
               const progress = quranProgress[surah.id - 1] || { completedVerses: 0, totalVerses: surah.verses };
               const completed = progress.completedVerses;
@@ -843,66 +843,70 @@ const LearningRoadmap = () => {
               const isExpanded = expandedSurahId === surah.id;
 
               return (
-                <div key={surah.id} className="mb-4 p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setExpandedSurahId(isExpanded ? null : surah.id)}>
-                        {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                      </button>
-                      <div>
-                        <span className="font-medium text-gray-900 dark:text-white">{surah.name_bn}</span>
-                        <span className="text-xs text-gray-500 ml-2">({surah.name_ar})</span>
-                        <span className="text-xs text-gray-500 ml-2">{surah.meaning}</span>
+                <div key={surah.id} className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 overflow-hidden h-fit">
+                  <div className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => setExpandedSurahId(isExpanded ? null : surah.id)}>
+                          {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                        </button>
+                        <div>
+                          <span className="font-medium text-gray-900 dark:text-white">{surah.name_bn}</span>
+                          <span className="text-xs text-gray-500 ml-2">({surah.name_ar})</span>
+                          <span className="text-xs text-gray-500 ml-2">{surah.meaning}</span>
+                        </div>
+                      </div>
+                      <div className="text-sm">
+                        <span className="font-bold text-amber-600">{completed}</span>/{total}
                       </div>
                     </div>
-                    <div className="text-sm">
-                      <span className="font-bold text-amber-600">{completed}</span>/{total}
+                    <div className="mt-2 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                      <div className="h-full bg-amber-500 rounded-full" style={{ width: `${percent}%` }} />
                     </div>
-                  </div>
-                  <div className="mt-2 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-500 rounded-full" style={{ width: `${percent}%` }} />
                   </div>
 
                   {isExpanded && (
-                    <div className="mt-3 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-600 dark:text-gray-400">Verses completed:</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max={total}
-                          value={verseInputs[surah.id] !== undefined ? verseInputs[surah.id] : completed}
-                          onChange={(e) => setVerseInputs({ ...verseInputs, [surah.id]: parseInt(e.target.value) || 0 })}
-                          className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-                        />
-                        <button
-                          onClick={() => {
-                            updateQuranProgress(surah.id, verseInputs[surah.id] !== undefined ? verseInputs[surah.id] : completed);
-                            setVerseInputs({ ...verseInputs, [surah.id]: undefined });
-                          }}
-                          className="px-3 py-1 bg-amber-600 text-white text-xs rounded hover:bg-amber-700"
-                        >
-                          Update
-                        </button>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <a
-                          href={`https://quran.com/bn/${surah.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                        >
-                          📖 Read on Quran.com <ExternalLink size={12} />
-                        </a>
-                        <span className="text-xs text-gray-400">|</span>
-                        <a
-                          href={`https://www.hadithbd.net/quran/${surah.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-amber-600 hover:underline flex items-center gap-1"
-                        >
-                          📚 Tafsir (Hadithbd) <ExternalLink size={12} />
-                        </a>
+                    <div className="border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600 dark:text-gray-400">Verses completed:</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={total}
+                            value={verseInputs[surah.id] !== undefined ? verseInputs[surah.id] : completed}
+                            onChange={(e) => setVerseInputs({ ...verseInputs, [surah.id]: parseInt(e.target.value) || 0 })}
+                            className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
+                          />
+                          <button
+                            onClick={() => {
+                              updateQuranProgress(surah.id, verseInputs[surah.id] !== undefined ? verseInputs[surah.id] : completed);
+                              setVerseInputs({ ...verseInputs, [surah.id]: undefined });
+                            }}
+                            className="px-3 py-1 bg-amber-600 text-white text-xs rounded hover:bg-amber-700"
+                          >
+                            Update
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <a
+                            href={`https://quran.com/bn/${surah.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                          >
+                            📖 Read on Quran.com <ExternalLink size={12} />
+                          </a>
+                          <span className="text-xs text-gray-400">|</span>
+                          <a
+                            href={`https://www.hadithbd.net/quran/${surah.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-amber-600 hover:underline flex items-center gap-1"
+                          >
+                            📚 Tafsir (Hadithbd) <ExternalLink size={12} />
+                          </a>
+                        </div>
                       </div>
                     </div>
                   )}
@@ -936,148 +940,151 @@ const LearningRoadmap = () => {
             formatTime={formatTime} 
           />
 
-          {/* ✅ SECTION A: OFFICIAL GOVERNMENT WEBSITES */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-              <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-              Official Government Websites (100% Authentic)
-            </h4>
-            <div className="space-y-2">
-              {gkWebsites.filter(site => site.isOfficial).map((site, idx) => (
+          {/* All resource groups in GRID layout */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Official Government Websites */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                Official Government Websites (100% Authentic)
+              </h4>
+              <div className="space-y-2">
+                {gkWebsites.filter(site => site.isOfficial).map((site, idx) => (
+                  <a
+                    key={idx}
+                    href={site.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition"
+                  >
+                    <span className="text-2xl">{site.icon}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900 dark:text-white">{site.name}</span>
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Official</span>
+                        <ExternalLink size={14} className="text-gray-500" />
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Encyclopedia & Statistics */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                Encyclopedia & Statistics (BCS GK Core)
+              </h4>
+              <div className="space-y-2">
+                {/* Banglapedia */}
+                <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">📔</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-gray-900 dark:text-white">বাংলাপিডিয়া (Banglapedia)</span>
+                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">National Encyclopedia</span>
+                      </div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">৫,৭০০+ এন্ট্রি, বাংলাদেশের ইতিহাস, ভূগোল, সংস্কৃতি, মুক্তিযুদ্ধ</p>
+                      <div className="flex gap-3 mt-2">
+                        <a href="https://en.banglapedia.org" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          English Version <ExternalLink size={12} />
+                        </a>
+                        <a href="https://bn.banglapedia.org" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                          বাংলা সংস্করণ <ExternalLink size={12} />
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* BBS */}
                 <a
-                  key={idx}
-                  href={site.url}
+                  href="http://nsds.bbs.gov.bd"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition"
+                  className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition"
                 >
-                  <span className="text-2xl">{site.icon}</span>
+                  <span className="text-2xl">📊</span>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900 dark:text-white">{site.name}</span>
+                      <span className="font-medium text-gray-900 dark:text-white">বাংলাদেশ পরিসংখ্যান ব্যুরো (BBS)</span>
                       <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Official</span>
                       <ExternalLink size={14} className="text-gray-500" />
                     </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">সরকারি পরিসংখ্যান, জনশুমারি, অর্থনৈতিক সূচক – বিসিএস জিকের জন্য অপরিহার্য</p>
                   </div>
                 </a>
-              ))}
-            </div>
-          </div>
-
-          {/* ✅ SECTION B: ENCYCLOPEDIA & STATISTICS */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-              <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-              Encyclopedia & Statistics (BCS GK Core)
-            </h4>
-            <div className="space-y-2">
-              {/* Banglapedia */}
-              <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">📔</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-medium text-gray-900 dark:text-white">বাংলাপিডিয়া (Banglapedia)</span>
-                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">National Encyclopedia</span>
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">৫,৭০০+ এন্ট্রি, বাংলাদেশের ইতিহাস, ভূগোল, সংস্কৃতি, মুক্তিযুদ্ধ</p>
-                    <div className="flex gap-3 mt-2">
-                      <a href="https://en.banglapedia.org" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                        English Version <ExternalLink size={12} />
-                      </a>
-                      <a href="https://bn.banglapedia.org" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                        বাংলা সংস্করণ <ExternalLink size={12} />
-                      </a>
-                    </div>
-                  </div>
-                </div>
               </div>
-              
-              {/* BBS */}
-              <a
-                href="http://nsds.bbs.gov.bd"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition"
-              >
-                <span className="text-2xl">📊</span>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium text-gray-900 dark:text-white">বাংলাদেশ পরিসংখ্যান ব্যুরো (BBS)</span>
-                    <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Official</span>
-                    <ExternalLink size={14} className="text-gray-500" />
-                  </div>
-                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">সরকারি পরিসংখ্যান, জনশুমারি, অর্থনৈতিক সূচক – বিসিএস জিকের জন্য অপরিহার্য</p>
-                </div>
-              </a>
             </div>
-          </div>
 
-          {/* ✅ SECTION C: CURRENT AFFAIRS */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-              <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-              Current Affairs (Daily News)
-            </h4>
-            <div className="space-y-2">
-              {gkWebsites.filter(site => !site.isOfficial && site.name.includes("ডেইলি স্টার") || site.name.includes("প্রতিদিন")).map((site, idx) => (
-                <a
-                  key={idx}
-                  href={site.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition"
-                >
-                  <span className="text-2xl">{site.icon}</span>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900 dark:text-white">{site.name}</span>
-                      <ExternalLink size={14} className="text-gray-500" />
-                    </div>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
-                  </div>
-                </a>
-              ))}
-            </div>
-          </div>
-
-          {/* 📱 SECTION D: MOBILE APPS (Not Web, but Useful) */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-amber-200 dark:border-amber-800 p-4">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-              <Smartphone size={16} className="text-amber-600" />
-              Mobile Apps (📱 Required – Not PC Web)
-            </h4>
-            <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-              বাংলাদেশের অধিকাংশ জব প্রিপারেশন প্ল্যাটফর্ম মোবাইল অ্যাপ-কেন্দ্রিক। নিচের লিংকগুলো প্লে স্টোর খুলবে।
-            </p>
-            <div className="space-y-2">
-              {mobileApps.map((app, idx) => (
-                <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">{app.icon}</span>
+            {/* Current Affairs */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-gray-200 dark:border-gray-700 p-4">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                Current Affairs (Daily News)
+              </h4>
+              <div className="space-y-2">
+                {gkWebsites.filter(site => !site.isOfficial && site.name.includes("ডেইলি স্টার") || site.name.includes("প্রতিদিন")).map((site, idx) => (
+                  <a
+                    key={idx}
+                    href={site.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition"
+                  >
+                    <span className="text-2xl">{site.icon}</span>
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900 dark:text-white">{app.name}</span>
-                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">App</span>
+                        <span className="font-medium text-gray-900 dark:text-white">{site.name}</span>
+                        <ExternalLink size={14} className="text-gray-500" />
                       </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{app.description}</p>
-                      <div className="flex gap-3 mt-2">
-                        {app.playStore && (
-                          <a href={app.playStore} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 hover:underline flex items-center gap-1">
-                            Play Store <ExternalLink size={12} />
-                          </a>
-                        )}
-                        {app.url && (
-                          <a href={app.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                            Website <ExternalLink size={12} />
-                          </a>
-                        )}
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+
+            {/* Mobile Apps */}
+            <div className="bg-white dark:bg-gray-800 rounded-xl shadow border border-amber-200 dark:border-amber-800 p-4">
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
+                <Smartphone size={16} className="text-amber-600" />
+                Mobile Apps (📱 Required – Not PC Web)
+              </h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+                বাংলাদেশের অধিকাংশ জব প্রিপারেশন প্ল্যাটফর্ম মোবাইল অ্যাপ-কেন্দ্রিক। নিচের লিংকগুলো প্লে স্টোর খুলবে।
+              </p>
+              <div className="space-y-2">
+                {mobileApps.map((app, idx) => (
+                  <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <span className="text-2xl">{app.icon}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900 dark:text-white">{app.name}</span>
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">App</span>
+                        </div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{app.description}</p>
+                        <div className="flex gap-3 mt-2">
+                          {app.playStore && (
+                            <a href={app.playStore} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 hover:underline flex items-center gap-1">
+                              Play Store <ExternalLink size={12} />
+                            </a>
+                          )}
+                          {app.url && (
+                            <a href={app.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
+                              Website <ExternalLink size={12} />
+                            </a>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -1129,7 +1136,7 @@ const LearningRoadmap = () => {
 };
 
 // ============================================================
-// TimerCard Component
+// TimerCard Component (unchanged)
 // ============================================================
 const TimerCard = ({ category, timer, startTimer, stopTimer, resetTimer, formatTime }) => {
   const isTimerForThis = timer.category === category;
