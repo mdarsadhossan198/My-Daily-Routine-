@@ -1,6 +1,5 @@
-// App.jsx – Complete with Top Navigation (Centered), React Router, LifeTimer Fixed
 import React, { useState, useEffect, useMemo } from "react";
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
 import { Toaster, toast } from "react-hot-toast";
 import {
   Calendar,
@@ -18,7 +17,6 @@ import {
   TrendingUp,
   CheckCircle,
   ListTodo,
-  Target as TargetIcon,
   PieChart,
   Heart,
   BarChart3,
@@ -39,8 +37,6 @@ import SettingsPanel from "./components/SettingsPanel";
 import LearningRoadmap from "./components/LearningRoadmap";
 import CommunicationRoadmap from "./components/CommunicationRoadmap";
 
-// ❌ Home কম্পোনেন্ট ইম্পোর্ট করা নেই
-
 function App() {
   return (
     <BrowserRouter>
@@ -50,8 +46,6 @@ function App() {
 }
 
 function AppContent() {
-  const navigate = useNavigate();
-  const location = useLocation();
   const [theme, setTheme] = useState("light");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -62,44 +56,27 @@ function AppContent() {
     focusTime: 0,
   });
 
-  // ✅ জন্ম তারিখ স্টেট – লোকাল স্টোরেজ থেকে লোড
+  // জন্ম তারিখ স্টেট (লোকাল স্টোরেজ থেকে লোড)
   const [birthDate, setBirthDate] = useState(() => {
     const saved = localStorage.getItem("birthDate");
     return saved || "2004-10-01";
   });
 
-  // ✅ জন্ম তারিখ লোকাল স্টোরেজে সেভ
-  useEffect(() => {
-    localStorage.setItem("birthDate", birthDate);
-  }, [birthDate]);
-
-  // 🌍 গ্লোবাল ল্যাঙ্গুয়েজ স্টেট
+  // ভাষা স্টেট
   const [appLanguage, setAppLanguage] = useState(() => {
     const saved = localStorage.getItem("appLanguage");
     return saved || "bn";
   });
 
+  // লোকাল স্টোরেজে ভাষা সংরক্ষণ
   useEffect(() => {
     localStorage.setItem("appLanguage", appLanguage);
   }, [appLanguage]);
 
-  // 📅 আজকের তারিখ (বহুভাষিক) – শুধু হেডারে দেখানোর জন্য
-  const todayDate = useMemo(() => {
-    const now = new Date();
-    if (appLanguage === "bn") {
-      return now.toLocaleDateString("bn-BD", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    } else {
-      return now.toLocaleDateString("en-US", {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-    }
-  }, [appLanguage]);
+  // জন্ম তারিখ সংরক্ষণ
+  useEffect(() => {
+    localStorage.setItem("birthDate", birthDate);
+  }, [birthDate]);
 
   // অনলাইন/অফলাইন টোস্ট
   useEffect(() => {
@@ -123,27 +100,27 @@ function AppContent() {
     };
   }, [appLanguage]);
 
-  // থিম
+  // থিম পরিবর্তন
   useEffect(() => {
     if (theme === "dark") document.documentElement.classList.add("dark");
     else document.documentElement.classList.remove("dark");
   }, [theme]);
 
-  // পরিসংখ্যান লোড
+  // পরিসংখ্যান লোড (শুধু হেডারে দেখানোর জন্য)
   useEffect(() => {
     const loadStats = () => {
       try {
-        const saved = localStorage.getItem("activityLog");
+        const saved = localStorage.getItem("advancedTimeBlocks");
         if (saved) {
-          const activities = JSON.parse(saved);
-          const total = activities.length;
-          const completed = activities.filter((a) => a.completed).length;
+          const blocks = JSON.parse(saved);
+          const total = blocks.length;
+          const completed = blocks.filter((b) => b.completed).length;
           const productivity = total > 0 ? Math.round((completed / total) * 100) : 0;
           setStats({
             totalTasks: total,
             completedTasks: completed,
             productivity,
-            focusTime: Math.floor(Math.random() * 8) + 2,
+            focusTime: Math.floor(Math.random() * 8) + 2, // placeholder
           });
         }
       } catch (error) {
@@ -151,7 +128,7 @@ function AppContent() {
       }
     };
     loadStats();
-    const interval = setInterval(loadStats, 30000);
+    const interval = setInterval(loadStats, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -177,7 +154,7 @@ function AppContent() {
     return () => clearInterval(timer);
   }, []);
 
-  // ---------- ট্যাব কনফিগারেশন (হোম বাদে) ----------
+  // ট্যাব কনফিগারেশন (সব ট্যাব)
   const tabs = [
     { id: "today", path: "/today", label: appLanguage === "bn" ? "আজ" : "Today", icon: <ListTodo size={20} /> },
     { id: "blocks", path: "/blocks", label: appLanguage === "bn" ? "টাইম ব্লক" : "Time Blocks", icon: <Clock size={20} /> },
@@ -189,9 +166,6 @@ function AppContent() {
     { id: "lifetimer", path: "/lifetimer", label: appLanguage === "bn" ? "লাইফ টাইমার" : "Life Timer", icon: <Heart size={20} /> },
     { id: "settings", path: "/settings", label: appLanguage === "bn" ? "সেটিংস" : "Settings", icon: <SettingsIcon size={20} /> },
   ];
-
-  // ইউজার নেম
-  const userName = "Arsad";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
@@ -206,23 +180,22 @@ function AppContent() {
         }}
       />
 
-      {/* Header */}
+      {/* হেডার */}
       <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-40">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* Left side - Logo and Title */}
+            {/* লোগো ও টাইটেল */}
             <div className="flex items-center">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-gradient-to-r from-blue-500 to-purple-500 rounded-lg">
                   <Calendar className="text-white" size={24} />
                 </div>
                 <div>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent capitalize">
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100 bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                     Arsad Day Planner
                   </h1>
                   <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                    <Clock size={10} />
-                    {currentTime}
+                    <Clock size={10} /> {currentTime}
                   </p>
                 </div>
               </div>
@@ -244,12 +217,12 @@ function AppContent() {
               </div>
             </div>
 
-            {/* Right side - Actions */}
+            {/* ডান পাশের বাটন */}
             <div className="flex items-center gap-3">
-              {/* Language Toggle */}
+              {/* ভাষা টগল */}
               <button
                 onClick={() => setAppLanguage(appLanguage === "bn" ? "en" : "bn")}
-                className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
+                className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
                 title={appLanguage === "bn" ? "Switch to English" : "বাংলায় যান"}
               >
                 <Globe size={20} />
@@ -258,7 +231,7 @@ function AppContent() {
                 </span>
               </button>
 
-              {/* Stats Badges (Desktop) */}
+              {/* স্ট্যাটাস ব্যাজ */}
               <div className="hidden md:flex items-center gap-2">
                 <div className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 rounded-full text-xs">
                   <span className="font-semibold text-blue-700 dark:text-blue-300">
@@ -277,42 +250,39 @@ function AppContent() {
                 </div>
               </div>
 
-              {/* Theme Toggle */}
+              {/* থিম টগল */}
               <button
                 onClick={() => setTheme(theme === "light" ? "dark" : "light")}
-                className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
-                title={theme === "light" ? "Switch to dark mode" : "Switch to light mode"}
+                className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
               >
                 {theme === "light" ? <Moon size={20} /> : <Sun size={20} />}
               </button>
 
-              {/* Notification Bell */}
+              {/* নোটিফিকেশন বেল */}
               <div className="relative">
-                <button className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200">
+                <button className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all">
                   <Bell size={20} />
                 </button>
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               </div>
 
-              {/* User Profile */}
+              {/* ইউজার প্রোফাইল */}
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
                   <User size={16} />
                 </div>
                 <div className="hidden md:block">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                    {userName}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">User</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     {appLanguage === "bn" ? "স্বাগতম" : "Welcome"}
                   </p>
                 </div>
               </div>
 
-              {/* Mobile Menu Button */}
+              {/* মোবাইল মেনু বাটন */}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200"
+                className="lg:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
               >
                 {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
@@ -321,7 +291,7 @@ function AppContent() {
         </div>
       </header>
 
-      {/* Top Navigation - Desktop (Centered) */}
+      {/* ডেস্কটপ নেভিগেশন (সেন্টার এলাইন) - সব ট্যাব দৃশ্যমান */}
       <nav className="hidden lg:block bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 sticky top-16 z-30">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-center items-center gap-1 overflow-x-auto py-2 scrollbar-hide">
@@ -331,8 +301,7 @@ function AppContent() {
                 to={tab.path}
                 onClick={() => setMobileMenuOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap
-                  ${
+                  `flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${
                     isActive
                       ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shadow-sm"
                       : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white"
@@ -353,7 +322,7 @@ function AppContent() {
         </div>
       </nav>
 
-      {/* Mobile Navigation - Dropdown Menu */}
+      {/* মোবাইল মেনু (ড্রপডাউন) */}
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-x-0 top-32 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xl rounded-b-2xl p-4 animate-slideDown">
           <div className="grid grid-cols-2 gap-2">
@@ -363,8 +332,7 @@ function AppContent() {
                 to={tab.path}
                 onClick={() => setMobileMenuOpen(false)}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 p-3 rounded-lg text-sm font-medium transition-all duration-200
-                  ${
+                  `flex items-center gap-2 p-3 rounded-lg text-sm font-medium transition-all ${
                     isActive
                       ? "bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
                       : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -385,33 +353,28 @@ function AppContent() {
         </div>
       )}
 
-      {/* Main Content - Routes */}
+      {/* মূল কন্টেন্ট - রাউট */}
       <main className="flex-1 overflow-y-auto">
         <div className="p-4 sm:p-6 lg:p-8">
           <div className="animate-fadeIn">
             <Routes>
-              {/* ✅ রুট পাথে রিডাইরেক্ট করবে /today-এ */}
               <Route path="/" element={<Navigate to="/today" replace />} />
               <Route path="/today" element={<ActivityLog />} />
               <Route path="/blocks" element={<TimeBlockManager />} />
               <Route path="/weekly" element={<WeeklyReview />} />
-              <Route path="/history" element={<History />} />
+              <Route path="/history" element={<History language={appLanguage} />} />
               <Route path="/roadmap" element={<Roadmap />} />
               <Route path="/learning" element={<LearningRoadmap />} />
               <Route path="/communication" element={<CommunicationRoadmap />} />
-              {/* ✅ লাইফ টাইমার – জন্ম তারিখ প্রপ হিসেবে পাঠানো */}
               <Route path="/lifetimer" element={<LifeTimer birthDate={birthDate} />} />
-              {/* ✅ সেটিংস প্যানেল – জন্ম তারিখ ও সেট ফাংশন পাঠানো */}
-              <Route path="/settings" element={
-                <SettingsPanel 
-                  birthDate={birthDate} 
-                  setBirthDate={setBirthDate} 
-                />
-              } />
+              <Route
+                path="/settings"
+                element={<SettingsPanel birthDate={birthDate} setBirthDate={setBirthDate} />}
+              />
             </Routes>
           </div>
 
-          {/* Footer */}
+          {/* ফুটার */}
           <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
             <p>DayMate Pro v1.0 • Built with React & Tailwind CSS • {new Date().getFullYear()}</p>
             <p className="mt-1">
@@ -423,7 +386,7 @@ function AppContent() {
         </div>
       </main>
 
-      {/* Global animation style */}
+      {/* অ্যানিমেশন স্টাইল */}
       <style>{`
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }

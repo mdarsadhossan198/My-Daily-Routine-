@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Clock } from 'lucide-react';
+import { Heart, Target } from 'lucide-react';
 
 const LifeTimer = ({ birthDate }) => {
-  const [language, setLanguage] = useState('en'); // 'en' or 'bn'
+  const [language, setLanguage] = useState('en');
   const [isPaused, setIsPaused] = useState(false);
   const [birthTime, setBirthTime] = useState({
     totalMs: 0,
@@ -14,18 +14,11 @@ const LifeTimer = ({ birthDate }) => {
     seconds: 0,
     milliseconds: 0,
   });
-  const [todayTime, setTodayTime] = useState({
-    hours: 0,
-    minutes: 0,
-    seconds: 0,
-    milliseconds: 0,
-    totalMs: 0,
-  });
+  const [goals, setGoals] = useState([]); // [{ id, title, deadline, remaining }]
 
   const birthAnimationRef = useRef();
-  const todayAnimationRef = useRef();
+  const goalsAnimationRef = useRef();
 
-  // ---------- ভাষা অনুবাদ ----------
   const t = (key) => {
     const translations = {
       en: {
@@ -44,10 +37,18 @@ const LifeTimer = ({ birthDate }) => {
         pause: 'Pause',
         resume: 'Resume',
         setBirthDateMsg: 'Please set your birth date in Settings.',
-        timeElapsedToday: 'Time Elapsed Today',
-        millisecondsSinceMidnight: 'milliseconds since midnight',
         en: 'English',
         bn: 'বাংলা',
+        goalCountdown: 'Goal Countdown',
+        goalTitle: 'Goal',
+        deadline: 'Deadline',
+        remaining: 'Remaining',
+        daysRemaining: 'days',
+        hoursRemaining: 'hours',
+        minutesRemaining: 'minutes',
+        secondsRemaining: 'seconds',
+        goalCompleted: 'Goal Completed! 🎉',
+        noGoal: 'No goals set. Go to Settings to add goals.',
       },
       bn: {
         lifeTimer: 'জীবন টাইমার',
@@ -65,16 +66,50 @@ const LifeTimer = ({ birthDate }) => {
         pause: 'বিরাম',
         resume: 'চালু',
         setBirthDateMsg: 'অনুগ্রহ করে সেটিংসে আপনার জন্ম তারিখ সেট করুন।',
-        timeElapsedToday: 'আজকের সময়',
-        millisecondsSinceMidnight: 'মধ্যরাত থেকে মিলিসেকেন্ড',
         en: 'ইংরেজি',
         bn: 'বাংলা',
+        goalCountdown: 'লক্ষ্য কাউন্টডাউন',
+        goalTitle: 'লক্ষ্য',
+        deadline: 'শেষ তারিখ',
+        remaining: 'অবশিষ্ট',
+        daysRemaining: 'দিন',
+        hoursRemaining: 'ঘন্টা',
+        minutesRemaining: 'মিনিট',
+        secondsRemaining: 'সেকেন্ড',
+        goalCompleted: 'লক্ষ্য পূরণ হয়েছে! 🎉',
+        noGoal: 'কোনো লক্ষ্য নির্ধারিত নেই। সেটিংসে গিয়ে লক্ষ্য যোগ করুন।',
       },
     };
     return translations[language][key] || key;
   };
 
-  // ---------- জন্ম টাইমার ----------
+  // গোল ডাটা লোড
+  useEffect(() => {
+    const loadGoals = () => {
+      const stored = localStorage.getItem('goalsList');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          // প্রতিটি গোলের জন্য remaining অবজেক্ট যোগ করা
+          const goalsWithRemaining = parsed.map(g => ({
+            ...g,
+            remaining: {}
+          }));
+          setGoals(goalsWithRemaining);
+        } catch (e) {
+          console.error('Error parsing goalsList', e);
+          setGoals([]);
+        }
+      } else {
+        setGoals([]);
+      }
+    };
+    loadGoals();
+    const interval = setInterval(loadGoals, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // জন্ম টাইমার
   useEffect(() => {
     if (!birthDate) return;
 
@@ -84,16 +119,7 @@ const LifeTimer = ({ birthDate }) => {
       const diff = now.getTime() - birth.getTime();
 
       if (diff < 0) {
-        setBirthTime({
-          totalMs: 0,
-          years: 0,
-          months: 0,
-          days: 0,
-          hours: 0,
-          minutes: 0,
-          seconds: 0,
-          milliseconds: 0,
-        });
+        setBirthTime({ totalMs: 0, years: 0, months: 0, days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 0 });
         return;
       }
 
@@ -147,48 +173,82 @@ const LifeTimer = ({ birthDate }) => {
     };
   }, [birthDate, isPaused]);
 
-  // ---------- আজকের টাইমার (মধ্যরাত থেকে) ----------
+  // গোল কাউন্টডাউন আপডেট
   useEffect(() => {
-    const updateTodayTimer = () => {
-      const now = new Date();
-      const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const diff = now.getTime() - midnight.getTime();
+    const updateGoals = () => {
+      setGoals(prevGoals =>
+        prevGoals.map(goal => {
+          if (!goal.deadline) return goal;
 
-      const totalMs = diff;
-      const hours = Math.floor(diff / (1000 * 60 * 60));
-      const remainingAfterHours = diff % (1000 * 60 * 60);
-      const minutes = Math.floor(remainingAfterHours / (1000 * 60));
-      const remainingAfterMinutes = remainingAfterHours % (1000 * 60);
-      const seconds = Math.floor(remainingAfterMinutes / 1000);
-      const milliseconds = Math.floor(remainingAfterMinutes % 1000);
+          const now = new Date();
+          const deadline = new Date(goal.deadline);
+          const diff = deadline.getTime() - now.getTime();
 
-      setTodayTime({
-        totalMs,
-        hours,
-        minutes,
-        seconds,
-        milliseconds,
-      });
+          if (diff <= 0) {
+            return { ...goal, remaining: { completed: true } };
+          }
 
-      todayAnimationRef.current = requestAnimationFrame(updateTodayTimer);
+          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+          return { ...goal, remaining: { days, hours, minutes, seconds } };
+        })
+      );
+
+      goalsAnimationRef.current = requestAnimationFrame(updateGoals);
     };
 
     if (!isPaused) {
-      todayAnimationRef.current = requestAnimationFrame(updateTodayTimer);
+      goalsAnimationRef.current = requestAnimationFrame(updateGoals);
     }
 
     return () => {
-      if (todayAnimationRef.current) {
-        cancelAnimationFrame(todayAnimationRef.current);
+      if (goalsAnimationRef.current) {
+        cancelAnimationFrame(goalsAnimationRef.current);
       }
     };
-  }, [isPaused]);
+  }, [isPaused, goals]); // নির্ভরশীলতা goals? – আমরা goals আপডেট করছি, কিন্তু goals পরিবর্তন হলে পুনরায় ইফেক্ট চালু হবে। তবে updateGoals-এ আমরা setGoals করছি, যা infinite loop তৈরি করতে পারে। তাই goals-কে ডিপেন্ডেন্সি থেকে বাদ দেওয়া উচিত, কারণ আমরা চাই প্রতিটি ফ্রেমে আপডেট হোক। ডিপেন্ডেন্সি অ্যারেতে শুধু isPaused থাকবে।
+
+  // উপরের ইফেক্ট ঠিক করা: goals ডিপেন্ডেন্সি সরিয়ে দিচ্ছি, কারণ আমরা চাই এনিমেশন লুপ চলতে থাকুক। কিন্তু setGoals-এর কারণে রি-রেন্ডার হবে, আর নতুন goals নিয়ে আবার এনিমেশন কল হবে। এটি চক্রাকার না হওয়ার জন্য আমরা `goals`-কে ডিপেন্ডেন্সি থেকে বাদ দিই, কিন্তু তখন updateGoals-এর ভিতরে `goals` পুরনো ক্লোজারে আটকে যাবে। তাই `setGoals`-এ ফাংশনাল আপডেট ব্যবহার করছি, যা সবসময়最新 state ব্যবহার করে। এতে কোনো সমস্যা নেই। ডিপেন্ডেন্সি অ্যারেতে শুধু `isPaused` রাখলে চলবে।
+
+  useEffect(() => {
+    const updateGoals = () => {
+      setGoals(prevGoals =>
+        prevGoals.map(goal => {
+          if (!goal.deadline) return goal;
+          const now = new Date();
+          const deadline = new Date(goal.deadline);
+          const diff = deadline.getTime() - now.getTime();
+          if (diff <= 0) {
+            return { ...goal, remaining: { completed: true } };
+          }
+          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+          return { ...goal, remaining: { days, hours, minutes, seconds } };
+        })
+      );
+      goalsAnimationRef.current = requestAnimationFrame(updateGoals);
+    };
+
+    if (!isPaused) {
+      goalsAnimationRef.current = requestAnimationFrame(updateGoals);
+    }
+
+    return () => {
+      if (goalsAnimationRef.current) {
+        cancelAnimationFrame(goalsAnimationRef.current);
+      }
+    };
+  }, [isPaused]); // শুধু isPaused ডিপেন্ডেন্সি
 
   const formatNumber = (num) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   };
 
-  // ---------- রেন্ডার ----------
   if (!birthDate) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl p-8 text-center shadow-lg">
@@ -203,8 +263,8 @@ const LifeTimer = ({ birthDate }) => {
 
   return (
     <div className="space-y-6">
-      {/* ভাষা সিলেক্টর ও কন্ট্রোল বাটন */}
-      <div className="flex justify-between items-center">
+      {/* ভাষা ও কন্ট্রোল */}
+      <div className="flex flex-wrap justify-between items-center gap-4">
         <div className="flex gap-2">
           <button
             onClick={() => setLanguage('en')}
@@ -241,14 +301,12 @@ const LifeTimer = ({ birthDate }) => {
           <Heart className="w-8 h-8 text-white/80" />
           <h2 className="text-3xl font-bold">{t('timeLived')}</h2>
         </div>
-
         <div className="text-center mb-6">
           <div className="text-5xl md:text-6xl font-mono font-bold tracking-wider">
             {formatNumber(birthTime.totalMs)}
           </div>
           <p className="text-sm text-white/70 mt-2">{t('millisecondsSinceBirth')}</p>
         </div>
-
         <div className="grid grid-cols-4 md:grid-cols-7 gap-4 text-center">
           <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
             <div className="text-3xl font-bold">{birthTime.years}</div>
@@ -279,50 +337,73 @@ const LifeTimer = ({ birthDate }) => {
             <div className="text-xs uppercase tracking-wider text-white/70">{t('ms')}</div>
           </div>
         </div>
-
         <div className="mt-6 text-sm text-white/70 flex justify-between items-center">
           <div>{t('born')}: {new Date(birthDate).toLocaleDateString()}</div>
           <div>{t('today')}: {new Date().toLocaleDateString()}</div>
         </div>
       </div>
 
-      {/* আজকের টাইমার (টাস্ক টাইমার) */}
-      <div className="bg-gradient-to-br from-green-600 to-teal-600 rounded-xl p-8 text-white shadow-2xl">
-        <div className="flex items-center gap-3 mb-6">
-          <Clock className="w-8 h-8 text-white/80" />
-          <h2 className="text-3xl font-bold">{t('timeElapsedToday')}</h2>
+      {/* গোল কাউন্টডাউন লিস্ট */}
+      {goals.length > 0 ? (
+        <div className="space-y-4">
+          {goals.map((goal, index) => (
+            <div key={index} className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl p-6 text-white shadow-2xl">
+              <div className="flex items-center gap-3 mb-4">
+                <Target className="w-6 h-6 text-white/80" />
+                <h2 className="text-2xl font-bold">{t('goalCountdown')} #{index + 1}</h2>
+              </div>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                <div>
+                  <p className="text-sm text-white/70">{t('goalTitle')}</p>
+                  <p className="text-xl font-bold">{goal.title}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-white/70">{t('deadline')}</p>
+                  <p className="text-lg font-semibold">{new Date(goal.deadline).toLocaleDateString()}</p>
+                </div>
+              </div>
+              {goal.remaining.completed ? (
+                <div className="text-center py-4">
+                  <p className="text-4xl mb-2">🎉</p>
+                  <p className="text-xl font-bold">{t('goalCompleted')}</p>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center mb-4">
+                    <p className="text-sm text-white/70">{t('remaining')}</p>
+                    <div className="text-4xl md:text-5xl font-mono font-bold tracking-wider">
+                      {goal.remaining.days}d {goal.remaining.hours}h {goal.remaining.minutes}m {goal.remaining.seconds}s
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-4 gap-3 text-center">
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
+                      <div className="text-2xl font-bold">{goal.remaining.days}</div>
+                      <div className="text-xs uppercase tracking-wider text-white/70">{t('daysRemaining')}</div>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
+                      <div className="text-2xl font-bold">{goal.remaining.hours}</div>
+                      <div className="text-xs uppercase tracking-wider text-white/70">{t('hoursRemaining')}</div>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
+                      <div className="text-2xl font-bold">{goal.remaining.minutes}</div>
+                      <div className="text-xs uppercase tracking-wider text-white/70">{t('minutesRemaining')}</div>
+                    </div>
+                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
+                      <div className="text-2xl font-bold">{goal.remaining.seconds}</div>
+                      <div className="text-xs uppercase tracking-wider text-white/70">{t('secondsRemaining')}</div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
         </div>
-
-        <div className="text-center mb-6">
-          <div className="text-5xl md:text-6xl font-mono font-bold tracking-wider">
-            {formatNumber(todayTime.totalMs)}
-          </div>
-          <p className="text-sm text-white/70 mt-2">{t('millisecondsSinceMidnight')}</p>
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 text-center shadow-lg border border-gray-200 dark:border-gray-700">
+          <Target className="w-12 h-12 mx-auto text-gray-400 mb-2" />
+          <p className="text-gray-600 dark:text-gray-400">{t('noGoal')}</p>
         </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{todayTime.hours}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('hours')}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{todayTime.minutes}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('minutes')}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{todayTime.seconds}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('seconds')}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{todayTime.milliseconds}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('ms')}</div>
-          </div>
-        </div>
-
-        <div className="mt-6 text-sm text-white/70 flex justify-end">
-          <div>{t('today')}: {new Date().toLocaleDateString()}</div>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

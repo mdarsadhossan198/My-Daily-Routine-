@@ -31,29 +31,27 @@ import {
 } from 'lucide-react';
 
 const ActivityLog = () => {
-  // ---------- Time Block Manager থেকে ডেটা লোড ----------
   const [timeBlocks, setTimeBlocks] = useState([]);
   const [timer, setTimer] = useState(null);
   const [activeTimer, setActiveTimer] = useState(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
-  const [selectedDay] = useState(() => {
-    const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-    return days[new Date().getDay()];
-  });
+  
+  // আমরা selectedDay ব্যবহার করছি না, কারণ আমরা সব টাস্ক দেখাতে চাই (শিডিউল অনুযায়ী ফিল্টার না করে)
+  // আপনি চাইলে ফিল্টার চালু করতে পারেন, তবে এখন সব টাস্ক দেখানো হচ্ছে পরীক্ষার জন্য।
 
-  // ---------- নোটিফিকেশন স্টেট ----------
+  // নোটিফিকেশন স্টেট
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     const saved = localStorage.getItem('notificationsEnabled');
     return saved ? JSON.parse(saved) : false;
   });
   const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
 
-  // ---------- পরিসংখ্যান স্টেট ----------
+  // পরিসংখ্যান স্টেট
   const [todayCompleted, setTodayCompleted] = useState(0);
   const [yesterdayCompleted, setYesterdayCompleted] = useState(0);
   const [weekCompleted, setWeekCompleted] = useState(0);
 
-  // ---------- লোকালস্টোরেজ থেকে টাইম ব্লক লোড ----------
+  // লোকালস্টোরেজ থেকে টাইম ব্লক লোড
   const loadTimeBlocks = () => {
     try {
       const saved = localStorage.getItem('advancedTimeBlocks');
@@ -74,12 +72,11 @@ const ActivityLog = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // ---------- নোটিফিকেশন সেটিংস ----------
+  // নোটিফিকেশন সেটিংস
   useEffect(() => {
     localStorage.setItem('notificationsEnabled', JSON.stringify(notificationsEnabled));
   }, [notificationsEnabled]);
 
-  // পারমিশন চাওয়া
   const requestNotificationPermission = async () => {
     if (notificationPermission === 'granted') return;
     try {
@@ -93,7 +90,6 @@ const ActivityLog = () => {
     }
   };
 
-  // নোটিফিকেশন টগল
   const toggleNotifications = () => {
     if (!notificationsEnabled && notificationPermission !== 'granted') {
       requestNotificationPermission().then(() => {
@@ -104,7 +100,7 @@ const ActivityLog = () => {
     }
   };
 
-  // ---------- টাস্ক রিমাইন্ডার চেক (প্রতি ৩০ সেকেন্ডে) ----------
+  // টাস্ক রিমাইন্ডার চেক
   useEffect(() => {
     if (!notificationsEnabled || notificationPermission !== 'granted') return;
 
@@ -112,25 +108,21 @@ const ActivityLog = () => {
       const now = new Date();
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
       
-      todayTasks.forEach(task => {
-        // যদি টাস্কে start না থাকে, স্কিপ করুন
-        if (!task.start) return;
-        // সময় ফরম্যাট ঠিক করুন (ধরে নিচ্ছি task.start "HH:MM" ফরম্যাটে আছে)
-        const taskStart = task.start.trim();
-        if (!task.completed && taskStart === currentTime) {
+      timeBlocks.forEach(task => {
+        if (!task.completed && task.start && task.start.trim() === currentTime) {
           new Notification('⏰ Task Reminder', {
             body: `It's time to start: ${task.title}`,
-            icon: '/favicon.ico' // আপনার ফেভিকন পাথ
+            icon: '/favicon.ico'
           });
         }
       });
     };
 
-    const interval = setInterval(checkUpcomingTasks, 30000); // প্রতি ৩০ সেকেন্ডে চেক
+    const interval = setInterval(checkUpcomingTasks, 30000);
     return () => clearInterval(interval);
   }, [notificationsEnabled, notificationPermission, timeBlocks]);
 
-  // ---------- টাইমার ইফেক্ট ----------
+  // টাইমার ইফেক্ট
   useEffect(() => {
     let interval;
     if (timer && activeTimer) {
@@ -150,7 +142,7 @@ const ActivityLog = () => {
     return () => clearInterval(interval);
   }, [timer, activeTimer]);
 
-  // ---------- পরিসংখ্যান গণনা (আজ, গতকাল, সপ্তাহ) ----------
+  // পরিসংখ্যান গণনা (আজ, গতকাল, সপ্তাহ)
   useEffect(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -173,7 +165,7 @@ const ActivityLog = () => {
     setWeekCompleted(weekCount);
   }, [timeBlocks]);
 
-  // ---------- কনস্ট্যান্ট ----------
+  // কনস্ট্যান্ট
   const categories = [
     { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700', borderColor: 'border-blue-200' },
     { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700', borderColor: 'border-red-200' },
@@ -192,7 +184,7 @@ const ActivityLog = () => {
     { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700', borderColor: 'border-red-200', icon: Zap }
   ];
 
-  // ---------- হেল্পার ফাংশন ----------
+  // হেল্পার ফাংশন
   const formatTime = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -208,15 +200,10 @@ const ActivityLog = () => {
     const total = duration || 60;
     const hours = Math.floor(total / 60);
     const minutes = total % 60;
-    return {
-      total,
-      hours,
-      minutes,
-      display: hours > 0 ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}` : `${minutes}m`
-    };
+    return { total, hours, minutes, display: hours > 0 ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}` : `${minutes}m` };
   };
 
-  // ---------- টাস্ক টগল কমপ্লিট ----------
+  // টাস্ক টগল কমপ্লিট (এখানে completedDate সঠিকভাবে সেট করা হয়েছে)
   const toggleComplete = (id) => {
     const now = new Date().toISOString().split('T')[0];
     const updatedBlocks = timeBlocks.map(block =>
@@ -231,10 +218,11 @@ const ActivityLog = () => {
     );
     localStorage.setItem('advancedTimeBlocks', JSON.stringify(updatedBlocks));
     setTimeBlocks(updatedBlocks);
-    toast.success(updatedBlocks.find(b => b.id === id).completed ? 'Task completed! 🎉' : 'Task uncompleted');
+    const task = updatedBlocks.find(b => b.id === id);
+    toast.success(task.completed ? 'Task completed! 🎉' : 'Task uncompleted');
   };
 
-  // ---------- টাইমার কন্ট্রোল ----------
+  // টাইমার কন্ট্রোল
   const startTimer = (block) => {
     const duration = calculateDuration(block.start, block.end);
     const totalSeconds = duration.total * 60;
@@ -250,27 +238,20 @@ const ActivityLog = () => {
     toast.info('Timer stopped');
   };
 
-  // ---------- আজকের টাস্ক ফিল্টার ----------
-  const todayTasks = timeBlocks.filter(block => {
-    const isRecurring = block.repeats && block.repeats.includes(selectedDay);
-    const isOneOff = block.scheduledDay === selectedDay;
-    return isRecurring || isOneOff;
-  }).sort((a, b) => a.start.localeCompare(b.start));
-
-  // ---------- স্ট্যাটস ----------
-  const total = todayTasks.length;
-  const completed = todayTasks.filter(t => t.completed).length;
+  // স্ট্যাটস – আমরা সব টাস্ক দেখাচ্ছি (আজকের জন্য ফিল্টার করছি না, কারণ আপনি চান সব টাস্ক দেখাতে)
+  const total = timeBlocks.length;
+  const completed = timeBlocks.filter(t => t.completed).length;
   const pending = total - completed;
   const completionRate = total === 0 ? 0 : Math.round((completed / total) * 100);
   
-  const totalEstimatedMinutes = todayTasks.reduce((sum, task) => {
+  const totalEstimatedMinutes = timeBlocks.reduce((sum, task) => {
     const duration = calculateDuration(task.start, task.end);
     return sum + duration.total;
   }, 0);
   const totalEstimatedHours = Math.floor(totalEstimatedMinutes / 60);
   const totalEstimatedRemainMinutes = totalEstimatedMinutes % 60;
 
-  // ---------- গ্রিটিং (সময় অনুযায়ী) ----------
+  // গ্রিটিং
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning ☀️';
@@ -278,7 +259,7 @@ const ActivityLog = () => {
     return 'Good Evening 🌙';
   };
 
-  // ---------- এক্সপোর্ট/ইম্পোর্ট ----------
+  // এক্সপোর্ট/ইম্পোর্ট
   const exportData = () => {
     const data = { version: '2.0', exportDate: new Date().toISOString(), timeBlocks };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -362,7 +343,7 @@ const ActivityLog = () => {
               <div>
                 <div className="text-sm uppercase tracking-wider opacity-80">Focusing on</div>
                 <div className="text-xl font-bold">
-                  {todayTasks.find(t => t.id === activeTimer)?.title}
+                  {timeBlocks.find(t => t.id === activeTimer)?.title}
                 </div>
                 <div className="font-mono text-3xl md:text-4xl font-bold mt-1">
                   {formatTime(timerSeconds)}
@@ -393,7 +374,7 @@ const ActivityLog = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 dark:text-gray-400">Completed Today</p>
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{completed}</p>
+              <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{todayCompleted}</p>
             </div>
             <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
               <CheckCircle className="text-green-600 dark:text-green-400" size={24} />
@@ -457,10 +438,10 @@ const ActivityLog = () => {
           <p className="text-lg text-gray-800 dark:text-gray-200">
             {total === 0 
               ? "No tasks scheduled today. Add some tasks to get started!"
-              : completionRate >= 80 ? "🔥 Excellent! You're crushing it today!"
-              : completionRate >= 50 ? "👍 Good job! Keep going."
-              : completionRate >= 20 ? "👌 You're making progress. Try to finish more tasks."
-              : "😐 You haven't completed many tasks yet. Stay focused!"
+              : todayCompleted >= total ? "🔥 Excellent! You've completed all tasks today!"
+              : todayCompleted === 0 ? "😐 You haven't completed any tasks yet. Stay focused!"
+              : todayCompleted > total/2 ? "👍 Good job! Keep going."
+              : "👌 You're making progress. Try to finish more tasks."
             }
           </p>
         </div>
@@ -469,13 +450,13 @@ const ActivityLog = () => {
             <Calendar size={18} className="text-blue-500" /> Compared to Yesterday
           </h4>
           <p className="text-lg text-gray-800 dark:text-gray-200">
-            {yesterdayCompleted === 0 && completed === 0
+            {yesterdayCompleted === 0 && todayCompleted === 0
               ? "You haven't completed any tasks in the last two days."
-              : yesterdayCompleted > completed
-                ? `📉 You completed more tasks yesterday (${yesterdayCompleted}) than today (${completed}). Let's pick up the pace!`
-                : yesterdayCompleted < completed
-                  ? `📈 Great improvement! Today you've completed ${completed} tasks vs ${yesterdayCompleted} yesterday.`
-                  : `⚖️ You're consistent! Both days you completed ${completed} tasks.`
+              : yesterdayCompleted > todayCompleted
+                ? `📉 You completed more tasks yesterday (${yesterdayCompleted}) than today (${todayCompleted}). Let's pick up the pace!`
+                : yesterdayCompleted < todayCompleted
+                  ? `📈 Great improvement! Today you've completed ${todayCompleted} tasks vs ${yesterdayCompleted} yesterday.`
+                  : `⚖️ You're consistent! Both days you completed ${todayCompleted} tasks.`
             }
           </p>
         </div>
@@ -505,14 +486,17 @@ const ActivityLog = () => {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Today's Progress</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {completed} of {total} tasks completed • {completionRate}% done
+                  {todayCompleted} of {total} tasks completed • {Math.round((todayCompleted / total) * 100)}% done
                 </p>
               </div>
             </div>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{completionRate}%</div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {Math.round((todayCompleted / total) * 100)}%
+            </div>
           </div>
           <div className="mt-4 h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500" style={{ width: `${completionRate}%` }} />
+            <div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500" 
+                 style={{ width: `${(todayCompleted / total) * 100}%` }} />
           </div>
           <div className="mt-4 flex flex-wrap gap-3 text-sm">
             {yesterdayCompleted > 0 && (
@@ -532,23 +516,23 @@ const ActivityLog = () => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Clock size={20} className="text-blue-500" /> Today's Schedule
+            <Clock size={20} className="text-blue-500" /> All Tasks
           </h3>
         </div>
 
-        {todayTasks.length === 0 ? (
+        {timeBlocks.length === 0 ? (
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-12 text-center shadow-lg border border-gray-100 dark:border-gray-700">
             <div className="w-24 h-24 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/30 dark:to-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
               <Calendar className="w-12 h-12 text-blue-500 dark:text-blue-400" />
             </div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No tasks scheduled for today</h3>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">No tasks yet</h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Go to <span className="font-medium text-blue-600 dark:text-blue-400">Time Blocks</span> tab to plan your day.
+              Go to <span className="font-medium text-blue-600 dark:text-blue-400">Time Blocks</span> tab to create tasks.
             </p>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4">
-            {todayTasks.map(task => {
+            {timeBlocks.map(task => {
               const category = categories.find(c => c.id === task.category);
               const priority = priorities.find(p => p.id === task.priority);
               const CategoryIcon = category?.icon || Briefcase;
@@ -608,8 +592,10 @@ const ActivityLog = () => {
                           <div className="flex items-center gap-4 text-sm">
                             <div className="flex items-center gap-1.5 text-gray-600 dark:text-gray-400">
                               <Clock size={14} className="text-blue-500" />
-                              <span className="font-medium">{task.start} – {task.end}</span>
-                              <span className="text-gray-400 dark:text-gray-500">({duration.display})</span>
+                              <span className="font-medium">{task.start || 'No time'} – {task.end || 'No time'}</span>
+                              {task.start && task.end && (
+                                <span className="text-gray-400 dark:text-gray-500">({duration.display})</span>
+                              )}
                             </div>
                           </div>
                           {task.description && (
@@ -655,11 +641,11 @@ const ActivityLog = () => {
       </div>
 
       {/* ফুটার */}
-      {todayTasks.length > 0 && (
+      {timeBlocks.length > 0 && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 text-center">
           <p className="text-gray-700 dark:text-gray-300 flex items-center justify-center gap-2">
             {completionRate === 100 ? (
-              <><Award className="text-yellow-500" size={20} /> <span className="font-medium">Excellent! You've crushed all your tasks today! 🌟</span></>
+              <><Award className="text-yellow-500" size={20} /> <span className="font-medium">Excellent! You've crushed all your tasks! 🌟</span></>
             ) : completionRate > 70 ? (
               <><TrendingUp className="text-green-500" size={20} /> <span className="font-medium">Almost there! Keep up the great work! 🚀</span></>
             ) : completionRate > 30 ? (
