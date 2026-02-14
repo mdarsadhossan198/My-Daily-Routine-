@@ -215,21 +215,21 @@ const ActivityLog = () => {
 
   // Constants
   const categories = [
-    { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700', borderColor: 'border-blue-200' },
-    { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700', borderColor: 'border-red-200' },
-    { id: 'learning', label: 'Learning', icon: BookOpen, color: 'bg-green-100 text-green-700', borderColor: 'border-green-200' },
-    { id: 'personal', label: 'Personal', icon: Home, color: 'bg-purple-100 text-purple-700', borderColor: 'border-purple-200' },
-    { id: 'social', label: 'Social', icon: Users, color: 'bg-pink-100 text-pink-700', borderColor: 'border-pink-200' },
-    { id: 'fitness', label: 'Fitness', icon: Dumbbell, color: 'bg-orange-100 text-orange-700', borderColor: 'border-orange-200' },
-    { id: 'creative', label: 'Creative', icon: Palette, color: 'bg-cyan-100 text-cyan-700', borderColor: 'border-cyan-200' },
-    { id: 'finance', label: 'Finance', icon: DollarSign, color: 'bg-emerald-100 text-emerald-700', borderColor: 'border-emerald-200' }
+    { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', borderColor: 'border-blue-200 dark:border-blue-800' },
+    { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800' },
+    { id: 'learning', label: 'Learning', icon: BookOpen, color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', borderColor: 'border-green-200 dark:border-green-800' },
+    { id: 'personal', label: 'Personal', icon: Home, color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', borderColor: 'border-purple-200 dark:border-purple-800' },
+    { id: 'social', label: 'Social', icon: Users, color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300', borderColor: 'border-pink-200 dark:border-pink-800' },
+    { id: 'fitness', label: 'Fitness', icon: Dumbbell, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', borderColor: 'border-orange-200 dark:border-orange-800' },
+    { id: 'creative', label: 'Creative', icon: Palette, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300', borderColor: 'border-cyan-200 dark:border-cyan-800' },
+    { id: 'finance', label: 'Finance', icon: DollarSign, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', borderColor: 'border-emerald-200 dark:border-emerald-800' }
   ];
 
   const priorities = [
-    { id: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700', borderColor: 'border-gray-200', icon: ChevronDown },
-    { id: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-700', borderColor: 'border-yellow-200', icon: ChevronUp },
-    { id: 'high', label: 'High', color: 'bg-orange-100 text-orange-700', borderColor: 'border-orange-200', icon: AlertCircle },
-    { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700', borderColor: 'border-red-200', icon: Zap }
+    { id: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', borderColor: 'border-gray-200 dark:border-gray-700', icon: ChevronDown },
+    { id: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', borderColor: 'border-yellow-200 dark:border-yellow-800', icon: ChevronUp },
+    { id: 'high', label: 'High', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', borderColor: 'border-orange-200 dark:border-orange-800', icon: AlertCircle },
+    { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800', icon: Zap }
   ];
 
   // Helper functions
@@ -850,7 +850,7 @@ const ActivityLog = () => {
         ) : (
           // Grid View with dynamic columns
           <div
-            className="grid grid-cols-1 gap-4"
+            className="grid gap-4"
             style={{
               gridTemplateColumns: `repeat(${gridColumns}, minmax(0, 1fr))`
             }}
@@ -916,7 +916,7 @@ const ActivityLog = () => {
                     </div>
                     <h4
                       className={`text-base font-semibold mb-1 ${
-                        task.completed ? 'line-through text-gray-400' : 'text-gray-900 dark:text-white'
+                        task.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'
                       }`}
                     >
                       {task.title}
@@ -926,7 +926,7 @@ const ActivityLog = () => {
                       <span>
                         {task.start || 'No time'} – {task.end || 'No time'}
                       </span>
-                      {task.start && task.end && <span className="text-gray-400">({duration.display})</span>}
+                      {task.start && task.end && <span className="text-gray-400 dark:text-gray-500">({duration.display})</span>}
                     </div>
                     {isOverdue && !task.completed && (
                       <div className="mb-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">

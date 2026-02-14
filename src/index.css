@@ -1,29 +1,56 @@
 @import "tailwindcss";
 
 @theme {
-  /* Primary color scale */
+  /* প্রাথমিক রঙ (লাইট মোড) */
   --color-primary-50: #eff6ff;
   --color-primary-100: #dbeafe;
   --color-primary-200: #bfdbfe;
   --color-primary-300: #93c5fd;
   --color-primary-400: #60a5fa;
   --color-primary-500: #3b82f6;
-  --color-primary-600: #2563eb;  /* তোমার bg-primary-600 এর জন্য */
+  --color-primary-600: #2563eb;
   --color-primary-700: #1d4ed8;
   --color-primary-800: #1e40af;
   --color-primary-900: #1e3a8a;
   --color-primary-950: #172554;
 
-  /* Other colors */
-  --color-secondary: oklch(0.723 0.219 149.579); /* Green */
-  --color-accent: oklch(0.673 0.279 293.283); /* Purple */
-  --color-danger: oklch(0.637 0.237 25.331); /* Red */
-  --color-warning: oklch(0.769 0.188 70.697); /* Orange */
+  /* অন্যান্য রঙ (লাইট মোড) */
+  --color-secondary: #22c55e;
+  --color-accent: #a855f7;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+
+  /* ডার্ক মোডের জন্য কালার ওভাররাইড */
+  --color-dark-bg: #111827;
+  --color-dark-surface: #1f2937;
+  --color-dark-text: #f9fafb;
+  --color-dark-text-secondary: #d1d5db;
+  --color-dark-border: #374151;
+}
+
+/* ডার্ক মোড সক্রিয় হলে রং পরিবর্তন */
+.dark {
+  --color-primary-50: #172554;
+  --color-primary-100: #1e3a8a;
+  --color-primary-200: #1e40af;
+  --color-primary-300: #1d4ed8;
+  --color-primary-400: #2563eb;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #60a5fa;
+  --color-primary-700: #93c5fd;
+  --color-primary-800: #bfdbfe;
+  --color-primary-900: #dbeafe;
+  --color-primary-950: #eff6ff;
+
+  --color-secondary: #16a34a;
+  --color-accent: #9333ea;
+  --color-danger: #dc2626;
+  --color-warning: #d97706;
 }
 
 @layer base {
   :root {
-    /* Variables for custom use */
+    /* RGB ভেরিয়েবল (যদি প্রয়োজন হয়) */
     --primary: 59 130 246;
     --secondary: 34 197 94;
     --accent: 168 85 247;
@@ -32,12 +59,17 @@
   }
 
   body {
-    @apply bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+    @apply bg-gray-50 text-gray-900;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
       'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
       sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* ডার্ক মোডে body স্টাইল */
+  .dark body {
+    @apply bg-gray-900 text-gray-100;
   }
 }
 
@@ -49,8 +81,7 @@
   }
 
   .btn-secondary {
-    @apply bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 
-           hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 
+    @apply bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 
            px-4 py-2 rounded-lg font-medium transition-colors duration-200 
            flex items-center gap-2;
   }
@@ -64,6 +95,4 @@
     @apply bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium 
            transition-colors duration-200 flex items-center gap-2;
   }
-  
-  /* ... বাকি সব component styles */
 }
