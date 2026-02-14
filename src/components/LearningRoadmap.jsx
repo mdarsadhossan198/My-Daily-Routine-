@@ -30,6 +30,7 @@ import {
   Grid,
   List,
   RefreshCw,
+  Server,
 } from "lucide-react";
 
 // ============================================================
@@ -166,7 +167,7 @@ const grammarWebsites = [
 ];
 
 // ============================================================
-// 3. কুরআন – বাংলা অর্থ ও তাফসির
+// 3. কুরআন – বাংলা অর্থ ও তাফসির (✅ নিশ্চিত ওয়েবসাইট)
 // ============================================================
 const quranWebsites = [
   {
@@ -193,7 +194,7 @@ const quranWebsites = [
 ];
 
 // ============================================================
-// 4. সাধারণ জ্ঞান ও চাকরি প্রস্তুতি
+// 4. সাধারণ জ্ঞান ও চাকরি প্রস্তুতি (✅ শুধু পিসিতে কাজ করা লিংক)
 // ============================================================
 const gkWebsites = [
   {
@@ -256,7 +257,7 @@ const gkWebsites = [
 ];
 
 // ============================================================
-// 5. মোবাইল অ্যাপ রিসোর্স
+// 5. মোবাইল অ্যাপ রিসোর্স (📱 ওয়েবসাইট না, কিন্তু কাজের)
 // ============================================================
 const mobileApps = [
   {
@@ -337,100 +338,198 @@ const grammarSubtopics = {
 };
 
 // ============================================================
-// 8. MAIN COMPONENT – LearningRoadmap (উন্নত সংস্করণ)
+// 8. নেটওয়ার্কিং টপিকস – নতুন যোগ করা
+// ============================================================
+const networkingTopics = {
+  "Networking Fundamentals": [
+    "What is Networking?",
+    "OSI Model (7 Layers)",
+    "TCP/IP Model",
+    "IP Addressing (IPv4 & IPv6)",
+    "Subnetting",
+    "VLANs",
+    "NAT & PAT"
+  ],
+  "Network Devices": [
+    "Hub, Switch, Router",
+    "Bridge, Repeater",
+    "Firewall",
+    "Load Balancer",
+    "Proxy Server"
+  ],
+  "Protocols": [
+    "HTTP/HTTPS",
+    "FTP/SFTP",
+    "DNS",
+    "DHCP",
+    "SMTP/POP3/IMAP",
+    "SNMP",
+    "ARP",
+    "ICMP"
+  ],
+  "Routing & Switching": [
+    "Static vs Dynamic Routing",
+    "RIP, OSPF, BGP",
+    "Switching Techniques",
+    "STP (Spanning Tree Protocol)"
+  ],
+  "Network Security": [
+    "Firewall Rules",
+    "VPN",
+    "IDS/IPS",
+    "SSL/TLS",
+    "AAA (Authentication, Authorization, Accounting)"
+  ],
+  "Wireless & Mobile": [
+    "Wi-Fi Standards (802.11)",
+    "Cellular Networks (4G/5G)",
+    "Bluetooth",
+    "RFID/NFC"
+  ],
+  "Cloud & Virtualization": [
+    "SDN (Software Defined Networking)",
+    "NFV",
+    "Cloud Networking (AWS VPC, Azure VNet)"
+  ],
+  "Troubleshooting": [
+    "Ping, Traceroute",
+    "Wireshark Basics",
+    "Netstat, Nslookup",
+    "Common Network Issues"
+  ]
+};
+
+// ============================================================
+// 9. নেটওয়ার্কিং ওয়েব রিসোর্স
+// ============================================================
+const networkingWebsites = [
+  {
+    name: "Cisco Networking Academy",
+    description: "ফ্রি কোর্স, সার্টিফিকেশন, ল্যাব",
+    url: "https://www.netacad.com",
+    icon: "🌐",
+    type: "web",
+  },
+  {
+    name: "Professor Messer (Network+)",
+    description: "ফ্রি ভিডিও টিউটোরিয়াল, নোটস",
+    url: "https://www.professormesser.com/network-plus/n10-008/",
+    icon: "🎥",
+    type: "web",
+  },
+  {
+    name: "GeeksforGeeks – Networking",
+    description: "বিস্তারিত আর্টিকেল, উদাহরণ",
+    url: "https://www.geeksforgeeks.org/computer-network-tutorials/",
+    icon: "📚",
+    type: "web",
+  },
+  {
+    name: "PacketLife.net",
+    description: "চিট শিট, ল্যাব, টিউটোরিয়াল",
+    url: "https://packetlife.net",
+    icon: "📦",
+    type: "web",
+  },
+];
+
+// ============================================================
+// 10. MAIN COMPONENT – LearningRoadmap (নেটওয়ার্কিং সহ)
 // ============================================================
 const LearningRoadmap = () => {
   // ---------- State Declarations ----------
-  // Grammar progress (subtopic level)
   const [grammarProgress, setGrammarProgress] = useState(() => {
-    const saved = localStorage.getItem("grammar_progress_v4");
+    const saved = localStorage.getItem("grammar_progress_v5");
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Quran progress (per surah: completed verses)
   const [quranProgress, setQuranProgress] = useState(() => {
-    const saved = localStorage.getItem("quran_progress_v4");
+    const saved = localStorage.getItem("quran_progress_v5");
     if (saved) return JSON.parse(saved);
     return allSurahs.map((s) => ({ completedVerses: 0, totalVerses: s.verses }));
   });
 
-  // Notes
-  const [notes, setNotes] = useState(() => {
-    const saved = localStorage.getItem("learning_notes_v4");
+  const [networkingProgress, setNetworkingProgress] = useState(() => {
+    const saved = localStorage.getItem("networking_progress_v5");
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Timer
+  const [notes, setNotes] = useState(() => {
+    const saved = localStorage.getItem("learning_notes_v5");
+    return saved ? JSON.parse(saved) : {};
+  });
+
   const [timer, setTimer] = useState({ running: false, seconds: 0, category: null });
   const timerInterval = useRef(null);
 
-  // Streak & Heatmap
   const [streak, setStreak] = useState(() => {
-    const saved = localStorage.getItem("streak_v4");
+    const saved = localStorage.getItem("streak_v5");
     return saved ? JSON.parse(saved) : { count: 0, lastActive: null };
   });
   const [heatmap, setHeatmap] = useState(() => {
-    const saved = localStorage.getItem("heatmap_v4");
+    const saved = localStorage.getItem("heatmap_v5");
     return saved ? JSON.parse(saved) : Array(30).fill(0);
   });
 
-  // Daily Goal
   const [dailyGoal, setDailyGoal] = useState(() => {
-    const saved = localStorage.getItem("daily_goal_v3");
+    const saved = localStorage.getItem("daily_goal_v4");
     return saved ? parseInt(saved) : 30;
   });
   const [todayMinutes, setTodayMinutes] = useState(() => {
-    const saved = localStorage.getItem("today_minutes_v3");
+    const saved = localStorage.getItem("today_minutes_v4");
     return saved ? parseInt(saved) : 0;
   });
 
-  // UI States
   const [selectedCategory, setSelectedCategory] = useState("grammar");
   const [expandedGrammarMain, setExpandedGrammarMain] = useState({});
+  const [expandedNetworkingMain, setExpandedNetworkingMain] = useState({});
   const [expandedSurahId, setExpandedSurahId] = useState(null);
   const [verseInputs, setVerseInputs] = useState({});
   const [searchQuery, setSearchQuery] = useState("");
   const [editingNoteKey, setEditingNoteKey] = useState(null);
   const [noteText, setNoteText] = useState("");
-  const [grammarView, setGrammarView] = useState("grid"); // "grid" or "list"
+  const [grammarView, setGrammarView] = useState("grid");
   const [quranView, setQuranView] = useState("grid");
   const [gkView, setGkView] = useState("grid");
+  const [networkingView, setNetworkingView] = useState("grid");
   const [quoteIndex, setQuoteIndex] = useState(0);
 
-  // Daily Wisdom
   const [dailyWisdom, setDailyWisdom] = useState(() => {
     const today = new Date().toDateString();
-    const saved = localStorage.getItem("daily_wisdom_v4");
+    const saved = localStorage.getItem("daily_wisdom_v5");
     if (saved) {
       const { date, quote } = JSON.parse(saved);
       if (date === today) return quote;
     }
     const random = dailyQuotes[Math.floor(Math.random() * dailyQuotes.length)];
-    localStorage.setItem("daily_wisdom_v4", JSON.stringify({ date: today, quote: random }));
+    localStorage.setItem("daily_wisdom_v5", JSON.stringify({ date: today, quote: random }));
     return random;
   });
 
   // ---------- LocalStorage Persistence ----------
   useEffect(() => {
-    localStorage.setItem("grammar_progress_v4", JSON.stringify(grammarProgress));
+    localStorage.setItem("grammar_progress_v5", JSON.stringify(grammarProgress));
   }, [grammarProgress]);
   useEffect(() => {
-    localStorage.setItem("quran_progress_v4", JSON.stringify(quranProgress));
+    localStorage.setItem("quran_progress_v5", JSON.stringify(quranProgress));
   }, [quranProgress]);
   useEffect(() => {
-    localStorage.setItem("learning_notes_v4", JSON.stringify(notes));
+    localStorage.setItem("networking_progress_v5", JSON.stringify(networkingProgress));
+  }, [networkingProgress]);
+  useEffect(() => {
+    localStorage.setItem("learning_notes_v5", JSON.stringify(notes));
   }, [notes]);
   useEffect(() => {
-    localStorage.setItem("streak_v4", JSON.stringify(streak));
+    localStorage.setItem("streak_v5", JSON.stringify(streak));
   }, [streak]);
   useEffect(() => {
-    localStorage.setItem("heatmap_v4", JSON.stringify(heatmap));
+    localStorage.setItem("heatmap_v5", JSON.stringify(heatmap));
   }, [heatmap]);
   useEffect(() => {
-    localStorage.setItem("daily_goal_v3", dailyGoal.toString());
+    localStorage.setItem("daily_goal_v4", dailyGoal.toString());
   }, [dailyGoal]);
   useEffect(() => {
-    localStorage.setItem("today_minutes_v3", todayMinutes.toString());
+    localStorage.setItem("today_minutes_v4", todayMinutes.toString());
   }, [todayMinutes]);
 
   // ---------- Streak Update ----------
@@ -450,6 +549,16 @@ const LearningRoadmap = () => {
   const toggleGrammar = useCallback((mainTopic, subtopic) => {
     const key = `${mainTopic}||${subtopic}`;
     setGrammarProgress((prev) => {
+      const newProgress = { ...prev, [key]: !prev[key] };
+      if (newProgress[key]) updateStreak();
+      return newProgress;
+    });
+  }, [updateStreak]);
+
+  // ---------- Toggle Networking Topic ----------
+  const toggleNetworking = useCallback((mainTopic, subtopic) => {
+    const key = `${mainTopic}||${subtopic}`;
+    setNetworkingProgress((prev) => {
       const newProgress = { ...prev, [key]: !prev[key] };
       if (newProgress[key]) updateStreak();
       return newProgress;
@@ -498,7 +607,6 @@ const LearningRoadmap = () => {
     return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  // Cleanup timer on unmount
   useEffect(() => {
     return () => clearInterval(timerInterval.current);
   }, []);
@@ -538,12 +646,21 @@ const LearningRoadmap = () => {
   const quranStats = useMemo(() => {
     const totalVerses = allSurahs.reduce((acc, s) => acc + s.verses, 0);
     const completedVerses = quranProgress.reduce((acc, s) => acc + (s.completedVerses || 0), 0);
-    return { 
-      total: totalVerses, 
-      completed: completedVerses, 
-      percent: totalVerses ? Math.round((completedVerses / totalVerses) * 100) : 0 
-    };
+    return { total: totalVerses, completed: completedVerses, percent: totalVerses ? Math.round((completedVerses / totalVerses) * 100) : 0 };
   }, [quranProgress]);
+
+  // ---------- Networking Stats ----------
+  const networkingStats = useMemo(() => {
+    const allSubs = Object.values(networkingTopics).flat();
+    const total = allSubs.length;
+    const completed = allSubs.filter(sub => {
+      for (let main in networkingTopics) {
+        if (networkingTopics[main].includes(sub) && networkingProgress[`${main}||${sub}`]) return true;
+      }
+      return false;
+    }).length;
+    return { total, completed, percent: total ? Math.round((completed / total) * 100) : 0 };
+  }, [networkingProgress]);
 
   // ---------- Get medal based on completed count ----------
   const getMedal = (count) => {
@@ -553,14 +670,10 @@ const LearningRoadmap = () => {
     return "";
   };
 
-  // ---------- Rotate quote ----------
   const rotateQuote = () => {
     setQuoteIndex((prev) => (prev + 1) % dailyQuotes.length);
   };
 
-  // ==========================================================
-  // RENDER (উন্নত গ্রিড/লিস্ট টগল ও কার্ড ডিজাইন)
-  // ==========================================================
   return (
     <div className="space-y-6">
       {/* ----- Header: Streak, Wisdom, Daily Goal ----- */}
@@ -619,7 +732,7 @@ const LearningRoadmap = () => {
         </div>
       </div>
 
-      {/* ----- Category Tabs ----- */}
+      {/* ----- Category Tabs (Networking সহ) ----- */}
       <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700 pb-2 overflow-x-auto">
         <button
           onClick={() => setSelectedCategory("grammar")}
@@ -651,9 +764,19 @@ const LearningRoadmap = () => {
         >
           🌍 General Knowledge & Jobs
         </button>
+        <button
+          onClick={() => setSelectedCategory("networking")}
+          className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
+            selectedCategory === "networking"
+              ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 shadow-md"
+              : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+          }`}
+        >
+          🌐 Networking
+        </button>
       </div>
 
-      {/* ========== GRAMMAR SECTION ========== */}
+      {/* ========== GRAMMAR SECTION ========== (সংক্ষেপে – পূর্বের কোডের মতো) */}
       {selectedCategory === "grammar" && (
         <div className="space-y-5">
           {/* Progress Overview with Medal */}
@@ -673,15 +796,7 @@ const LearningRoadmap = () => {
           </div>
 
           {/* Timer */}
-          <TimerCard 
-            category="grammar" 
-            timer={timer} 
-            startTimer={startTimer} 
-            stopTimer={stopTimer} 
-            resetTimer={resetTimer} 
-            formatTime={formatTime} 
-            color="blue"
-          />
+          <TimerCard category="grammar" timer={timer} startTimer={startTimer} stopTimer={stopTimer} resetTimer={resetTimer} formatTime={formatTime} color="blue" />
 
           {/* Web Resources */}
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
@@ -690,13 +805,7 @@ const LearningRoadmap = () => {
             </h4>
             <div className="space-y-2">
               {grammarWebsites.map((site, idx) => (
-                <a
-                  key={idx}
-                  href={site.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all hover:shadow-md"
-                >
+                <a key={idx} href={site.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all hover:shadow-md">
                   <span className="text-2xl">{site.icon}</span>
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
@@ -714,24 +823,12 @@ const LearningRoadmap = () => {
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Grammar Topics</h3>
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-              <button
-                onClick={() => setGrammarView("grid")}
-                className={`p-1.5 rounded ${grammarView === "grid" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}
-                title="Grid view"
-              >
-                <Grid size={18} />
-              </button>
-              <button
-                onClick={() => setGrammarView("list")}
-                className={`p-1.5 rounded ${grammarView === "list" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}
-                title="List view"
-              >
-                <List size={18} />
-              </button>
+              <button onClick={() => setGrammarView("grid")} className={`p-1.5 rounded ${grammarView === "grid" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}><Grid size={18} /></button>
+              <button onClick={() => setGrammarView("list")} className={`p-1.5 rounded ${grammarView === "list" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}><List size={18} /></button>
             </div>
           </div>
 
-          {/* Grammar Topics with Subtopics - Dynamic Grid/List */}
+          {/* Grammar Topics (Grid/List) */}
           <div className={grammarView === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-4"}>
             {Object.entries(grammarSubtopics).map(([mainTopic, subtopics]) => {
               const completedCount = subtopics.filter(sub => grammarProgress[`${mainTopic}||${sub}`]).length;
@@ -741,10 +838,7 @@ const LearningRoadmap = () => {
 
               return (
                 <div key={mainTopic} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden h-fit hover:shadow-xl transition-all">
-                  <div 
-                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                    onClick={() => setExpandedGrammarMain(prev => ({ ...prev, [mainTopic]: !prev[mainTopic] }))}
-                  >
+                  <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50" onClick={() => setExpandedGrammarMain(prev => ({ ...prev, [mainTopic]: !prev[mainTopic] }))}>
                     <div className="flex-1">
                       <h4 className="font-medium text-gray-900 dark:text-white">{mainTopic}</h4>
                       <div className="flex items-center gap-2 mt-1">
@@ -754,11 +848,8 @@ const LearningRoadmap = () => {
                         <span className="text-xs text-gray-600 dark:text-gray-400">{completedCount}/{totalCount}</span>
                       </div>
                     </div>
-                    <div className="ml-2">
-                      {isExpanded ? <ChevronUp size={18} className="text-gray-500" /> : <ChevronDown size={18} className="text-gray-500" />}
-                    </div>
+                    <div className="ml-2">{isExpanded ? <ChevronUp size={18} className="text-gray-500" /> : <ChevronDown size={18} className="text-gray-500" />}</div>
                   </div>
-
                   {isExpanded && (
                     <div className="border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
                       <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -768,26 +859,12 @@ const LearningRoadmap = () => {
                           return (
                             <div key={sub} className="flex items-start gap-2 p-2 rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-colors">
                               <button onClick={() => toggleGrammar(mainTopic, sub)} className="mt-0.5 flex-shrink-0">
-                                {completed ? (
-                                  <CheckCircle size={18} className="text-green-600" />
-                                ) : (
-                                  <Circle size={18} className="text-gray-400" />
-                                )}
+                                {completed ? <CheckCircle size={18} className="text-green-600" /> : <Circle size={18} className="text-gray-400" />}
                               </button>
                               <div className="flex-1">
-                                <span className={`text-sm ${completed ? "text-gray-500 line-through" : "text-gray-800 dark:text-gray-200"}`}>
-                                  {sub}
-                                </span>
+                                <span className={`text-sm ${completed ? "text-gray-500 line-through" : "text-gray-800 dark:text-gray-200"}`}>{sub}</span>
                               </div>
-                              <button
-                                onClick={() => {
-                                  setEditingNoteKey(key);
-                                  setNoteText(notes[key] || "");
-                                }}
-                                className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"
-                              >
-                                <Edit3 size={14} />
-                              </button>
+                              <button onClick={() => { setEditingNoteKey(key); setNoteText(notes[key] || ""); }} className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"><Edit3 size={14} /></button>
                             </div>
                           );
                         })}
@@ -801,93 +878,38 @@ const LearningRoadmap = () => {
         </div>
       )}
 
-      {/* ========== QURAN SECTION ========== */}
+      {/* ========== QURAN SECTION ========== (সংক্ষেপে – পূর্বের কোডের মতো) */}
       {selectedCategory === "quran" && (
         <div className="space-y-5">
-          {/* Progress Overview */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <BookMarked className="text-amber-600" size={22} /> Quran Reading
-              </h3>
-              <span className="text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-3 py-1 rounded-full">
-                {quranStats.completed}/{quranStats.total} verses
-              </span>
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2"><BookMarked className="text-amber-600" size={22} /> Quran Reading</h3>
+              <span className="text-sm bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 px-3 py-1 rounded-full">{quranStats.completed}/{quranStats.total} verses</span>
             </div>
-            <div className="h-2.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-              <div className="h-full bg-amber-600 rounded-full transition-all duration-500" style={{ width: `${quranStats.percent}%` }} />
-            </div>
+            <div className="h-2.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"><div className="h-full bg-amber-600 rounded-full transition-all duration-500" style={{ width: `${quranStats.percent}%` }} /></div>
           </div>
-
-          {/* Timer */}
-          <TimerCard 
-            category="quran" 
-            timer={timer} 
-            startTimer={startTimer} 
-            stopTimer={stopTimer} 
-            resetTimer={resetTimer} 
-            formatTime={formatTime} 
-            color="amber"
-          />
-
-          {/* Web Resources */}
+          <TimerCard category="quran" timer={timer} startTimer={startTimer} stopTimer={stopTimer} resetTimer={resetTimer} formatTime={formatTime} color="amber" />
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-            <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-              <Monitor size={16} className="text-amber-600" /> Web Resources (PC)
-            </h4>
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3"><Monitor size={16} className="text-amber-600" /> Web Resources (PC)</h4>
             <div className="space-y-2">
               {quranWebsites.map((site, idx) => (
-                <a
-                  key={idx}
-                  href={site.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all hover:shadow-md"
-                >
+                <a key={idx} href={site.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/20 transition-all hover:shadow-md">
                   <span className="text-2xl">{site.icon}</span>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900 dark:text-white">{site.name}</span>
-                      <ExternalLink size={14} className="text-gray-500" />
-                    </div>
+                    <div className="flex items-center gap-2"><span className="font-medium text-gray-900 dark:text-white">{site.name}</span><ExternalLink size={14} className="text-gray-500" /></div>
                     <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
                   </div>
                 </a>
               ))}
             </div>
           </div>
-
-          {/* Surah Search and View Toggle */}
           <div className="flex items-center gap-3">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-              <input
-                type="text"
-                placeholder="Search surah (বাংলা/আরবি)..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-amber-500"
-              />
-            </div>
+            <div className="relative flex-1"><Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} /><input type="text" placeholder="Search surah (বাংলা/আরবি)..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-amber-500" /></div>
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-              <button
-                onClick={() => setQuranView("grid")}
-                className={`p-1.5 rounded ${quranView === "grid" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}
-                title="Grid view"
-              >
-                <Grid size={18} />
-              </button>
-              <button
-                onClick={() => setQuranView("list")}
-                className={`p-1.5 rounded ${quranView === "list" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}
-                title="List view"
-              >
-                <List size={18} />
-              </button>
+              <button onClick={() => setQuranView("grid")} className={`p-1.5 rounded ${quranView === "grid" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}><Grid size={18} /></button>
+              <button onClick={() => setQuranView("list")} className={`p-1.5 rounded ${quranView === "list" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}><List size={18} /></button>
             </div>
           </div>
-
-          {/* Surah List - Dynamic Grid/List */}
           <div className={quranView === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" : "space-y-4"}>
             {filteredSurahs.map((surah) => {
               const progress = quranProgress[surah.id - 1] || { completedVerses: 0, totalVerses: surah.verses };
@@ -895,71 +917,30 @@ const LearningRoadmap = () => {
               const total = surah.verses;
               const percent = total ? Math.round((completed / total) * 100) : 0;
               const isExpanded = expandedSurahId === surah.id;
-
               return (
                 <div key={surah.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden h-fit hover:shadow-xl transition-all">
                   <div className="p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <button onClick={() => setExpandedSurahId(isExpanded ? null : surah.id)}>
-                          {isExpanded ? <ChevronUp size={18} className="text-gray-500" /> : <ChevronDown size={18} className="text-gray-500" />}
-                        </button>
-                        <div>
-                          <span className="font-medium text-gray-900 dark:text-white">{surah.name_bn}</span>
-                          <span className="text-xs text-gray-500 ml-2">({surah.name_ar})</span>
-                          <span className="text-xs text-gray-500 ml-2">{surah.meaning}</span>
-                        </div>
+                        <button onClick={() => setExpandedSurahId(isExpanded ? null : surah.id)}>{isExpanded ? <ChevronUp size={18} className="text-gray-500" /> : <ChevronDown size={18} className="text-gray-500" />}</button>
+                        <div><span className="font-medium text-gray-900 dark:text-white">{surah.name_bn}</span><span className="text-xs text-gray-500 ml-2">({surah.name_ar})</span><span className="text-xs text-gray-500 ml-2">{surah.meaning}</span></div>
                       </div>
-                      <div className="text-sm">
-                        <span className="font-bold text-amber-600">{completed}</span>/{total}
-                      </div>
+                      <div className="text-sm"><span className="font-bold text-amber-600">{completed}</span>/{total}</div>
                     </div>
-                    <div className="mt-2 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                      <div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${percent}%` }} />
-                    </div>
+                    <div className="mt-2 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"><div className="h-full bg-amber-500 rounded-full transition-all duration-500" style={{ width: `${percent}%` }} /></div>
                   </div>
-
                   {isExpanded && (
                     <div className="border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
                       <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-gray-600 dark:text-gray-400">Verses completed:</span>
-                          <input
-                            type="number"
-                            min="0"
-                            max={total}
-                            value={verseInputs[surah.id] !== undefined ? verseInputs[surah.id] : completed}
-                            onChange={(e) => setVerseInputs({ ...verseInputs, [surah.id]: parseInt(e.target.value) || 0 })}
-                            className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800"
-                          />
-                          <button
-                            onClick={() => {
-                              updateQuranProgress(surah.id, verseInputs[surah.id] !== undefined ? verseInputs[surah.id] : completed);
-                              setVerseInputs({ ...verseInputs, [surah.id]: undefined });
-                            }}
-                            className="px-3 py-1 bg-amber-600 text-white text-xs rounded hover:bg-amber-700 transition"
-                          >
-                            Update
-                          </button>
+                          <input type="number" min="0" max={total} value={verseInputs[surah.id] !== undefined ? verseInputs[surah.id] : completed} onChange={(e) => setVerseInputs({ ...verseInputs, [surah.id]: parseInt(e.target.value) || 0 })} className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800" />
+                          <button onClick={() => { updateQuranProgress(surah.id, verseInputs[surah.id] !== undefined ? verseInputs[surah.id] : completed); setVerseInputs({ ...verseInputs, [surah.id]: undefined }); }} className="px-3 py-1 bg-amber-600 text-white text-xs rounded hover:bg-amber-700 transition">Update</button>
                         </div>
                         <div className="flex items-center gap-2">
-                          <a
-                            href={`https://quran.com/bn/${surah.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-blue-600 hover:underline flex items-center gap-1"
-                          >
-                            📖 Read on Quran.com <ExternalLink size={12} />
-                          </a>
+                          <a href={`https://quran.com/bn/${surah.id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">📖 Read on Quran.com <ExternalLink size={12} /></a>
                           <span className="text-xs text-gray-400">|</span>
-                          <a
-                            href={`https://www.hadithbd.net/quran/${surah.id}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-amber-600 hover:underline flex items-center gap-1"
-                          >
-                            📚 Tafsir (Hadithbd) <ExternalLink size={12} />
-                          </a>
+                          <a href={`https://www.hadithbd.net/quran/${surah.id}`} target="_blank" rel="noopener noreferrer" className="text-xs text-amber-600 hover:underline flex items-center gap-1">📚 Tafsir (Hadithbd) <ExternalLink size={12} /></a>
                         </div>
                       </div>
                     </div>
@@ -971,196 +952,179 @@ const LearningRoadmap = () => {
         </div>
       )}
 
-      {/* ========== GK & JOB PREPARATION SECTION ========== */}
+      {/* ========== GK & JOB PREPARATION SECTION ========== (সংক্ষেপে – পূর্বের কোডের মতো) */}
       {selectedCategory === "gk" && (
         <div className="space-y-5">
-          {/* Header */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-1">
-              <Globe className="text-emerald-600" size={22} /> General Knowledge & Job Preparation
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              ✅ Verified web resources – works on PC browser
-            </p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-1"><Globe className="text-emerald-600" size={22} /> General Knowledge & Job Preparation</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400">✅ Verified web resources – works on PC browser</p>
           </div>
-
-          {/* Timer */}
-          <TimerCard 
-            category="gk" 
-            timer={timer} 
-            startTimer={startTimer} 
-            stopTimer={stopTimer} 
-            resetTimer={resetTimer} 
-            formatTime={formatTime} 
-            color="emerald"
-          />
-
-          {/* View Toggle for GK */}
+          <TimerCard category="gk" timer={timer} startTimer={startTimer} stopTimer={stopTimer} resetTimer={resetTimer} formatTime={formatTime} color="emerald" />
           <div className="flex justify-end">
             <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
-              <button
-                onClick={() => setGkView("grid")}
-                className={`p-1.5 rounded ${gkView === "grid" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}
-                title="Grid view"
-              >
-                <Grid size={18} />
-              </button>
-              <button
-                onClick={() => setGkView("list")}
-                className={`p-1.5 rounded ${gkView === "list" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}
-                title="List view"
-              >
-                <List size={18} />
-              </button>
+              <button onClick={() => setGkView("grid")} className={`p-1.5 rounded ${gkView === "grid" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}><Grid size={18} /></button>
+              <button onClick={() => setGkView("list")} className={`p-1.5 rounded ${gkView === "list" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}><List size={18} /></button>
             </div>
           </div>
-
-          {/* All resource groups in dynamic layout */}
           <div className={gkView === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "space-y-4"}>
             {/* Official Government Websites */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                Official Government Websites
-              </h4>
-              <div className="space-y-2">
-                {gkWebsites.filter(site => site.isOfficial).map((site, idx) => (
-                  <a
-                    key={idx}
-                    href={site.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all hover:shadow-md"
-                  >
-                    <span className="text-2xl">{site.icon}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900 dark:text-white">{site.name}</span>
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Official</span>
-                        <ExternalLink size={14} className="text-gray-500" />
-                      </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
-                    </div>
-                  </a>
-                ))}
-              </div>
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3"><span className="w-2 h-2 bg-green-500 rounded-full" /> Official Government Websites</h4>
+              <div className="space-y-2">{gkWebsites.filter(site => site.isOfficial).map((site, idx) => (
+                <a key={idx} href={site.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all hover:shadow-md">
+                  <span className="text-2xl">{site.icon}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2"><span className="font-medium text-gray-900 dark:text-white">{site.name}</span><span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Official</span><ExternalLink size={14} className="text-gray-500" /></div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
+                  </div>
+                </a>
+              ))}</div>
             </div>
-
             {/* Encyclopedia & Statistics */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                Encyclopedia & Statistics
-              </h4>
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3"><span className="w-2 h-2 bg-blue-500 rounded-full" /> Encyclopedia & Statistics</h4>
               <div className="space-y-2">
-                {/* Banglapedia */}
                 <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                   <div className="flex items-start gap-3">
                     <span className="text-2xl">📔</span>
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium text-gray-900 dark:text-white">বাংলাপিডিয়া (Banglapedia)</span>
-                        <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">National Encyclopedia</span>
-                      </div>
+                      <div className="flex items-center gap-2 flex-wrap"><span className="font-medium text-gray-900 dark:text-white">বাংলাপিডিয়া (Banglapedia)</span><span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">National Encyclopedia</span></div>
                       <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">৫,৭০০+ এন্ট্রি, বাংলাদেশের ইতিহাস, ভূগোল, সংস্কৃতি, মুক্তিযুদ্ধ</p>
                       <div className="flex gap-3 mt-2">
-                        <a href="https://en.banglapedia.org" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                          English Version <ExternalLink size={12} />
-                        </a>
-                        <a href="https://bn.banglapedia.org" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                          বাংলা সংস্করণ <ExternalLink size={12} />
-                        </a>
+                        <a href="https://en.banglapedia.org" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">English Version <ExternalLink size={12} /></a>
+                        <a href="https://bn.banglapedia.org" target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">বাংলা সংস্করণ <ExternalLink size={12} /></a>
                       </div>
                     </div>
                   </div>
                 </div>
-                
-                {/* BBS */}
-                <a
-                  href="http://nsds.bbs.gov.bd"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all hover:shadow-md"
-                >
+                <a href="http://nsds.bbs.gov.bd" target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all hover:shadow-md">
                   <span className="text-2xl">📊</span>
                   <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900 dark:text-white">বাংলাদেশ পরিসংখ্যান ব্যুরো (BBS)</span>
-                      <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Official</span>
-                      <ExternalLink size={14} className="text-gray-500" />
-                    </div>
+                    <div className="flex items-center gap-2"><span className="font-medium text-gray-900 dark:text-white">বাংলাদেশ পরিসংখ্যান ব্যুরো (BBS)</span><span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Official</span><ExternalLink size={14} className="text-gray-500" /></div>
                     <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">সরকারি পরিসংখ্যান, জনশুমারি, অর্থনৈতিক সূচক – বিসিএস জিকের জন্য অপরিহার্য</p>
                   </div>
                 </a>
               </div>
             </div>
-
             {/* Current Affairs */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-                <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                Current Affairs
-              </h4>
-              <div className="space-y-2">
-                {gkWebsites.filter(site => !site.isOfficial && (site.name.includes("ডেইলি স্টার") || site.name.includes("প্রতিদিন"))).map((site, idx) => (
-                  <a
-                    key={idx}
-                    href={site.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all hover:shadow-md"
-                  >
-                    <span className="text-2xl">{site.icon}</span>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-gray-900 dark:text-white">{site.name}</span>
-                        <ExternalLink size={14} className="text-gray-500" />
-                      </div>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
-                    </div>
-                  </a>
-                ))}
-              </div>
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3"><span className="w-2 h-2 bg-purple-500 rounded-full" /> Current Affairs</h4>
+              <div className="space-y-2">{gkWebsites.filter(site => !site.isOfficial && (site.name.includes("ডেইলি স্টার") || site.name.includes("প্রতিদিন"))).map((site, idx) => (
+                <a key={idx} href={site.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all hover:shadow-md">
+                  <span className="text-2xl">{site.icon}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2"><span className="font-medium text-gray-900 dark:text-white">{site.name}</span><ExternalLink size={14} className="text-gray-500" /></div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
+                  </div>
+                </a>
+              ))}</div>
             </div>
-
             {/* Mobile Apps */}
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-amber-200 dark:border-amber-800 p-4">
-              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3">
-                <Smartphone size={16} className="text-amber-600" />
-                Mobile Apps
-              </h4>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">
-                বাংলাদেশের অধিকাংশ জব প্রিপারেশন প্ল্যাটফর্ম মোবাইল অ্যাপ-কেন্দ্রিক। নিচের লিংকগুলো প্লে স্টোর খুলবে।
-              </p>
-              <div className="space-y-2">
-                {mobileApps.map((app, idx) => (
-                  <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                    <div className="flex items-start gap-3">
-                      <span className="text-2xl">{app.icon}</span>
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900 dark:text-white">{app.name}</span>
-                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">App</span>
-                        </div>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{app.description}</p>
-                        <div className="flex gap-3 mt-2">
-                          {app.playStore && (
-                            <a href={app.playStore} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 hover:underline flex items-center gap-1">
-                              Play Store <ExternalLink size={12} />
-                            </a>
-                          )}
-                          {app.url && (
-                            <a href={app.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                              Website <ExternalLink size={12} />
-                            </a>
-                          )}
-                        </div>
+              <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3"><Smartphone size={16} className="text-amber-600" /> Mobile Apps</h4>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">বাংলাদেশের অধিকাংশ জব প্রিপারেশন প্ল্যাটফর্ম মোবাইল অ্যাপ-কেন্দ্রিক। নিচের লিংকগুলো প্লে স্টোর খুলবে।</p>
+              <div className="space-y-2">{mobileApps.map((app, idx) => (
+                <div key={idx} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">{app.icon}</span>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2"><span className="font-medium text-gray-900 dark:text-white">{app.name}</span><span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">App</span></div>
+                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{app.description}</p>
+                      <div className="flex gap-3 mt-2">
+                        {app.playStore && <a href={app.playStore} target="_blank" rel="noopener noreferrer" className="text-xs text-green-600 hover:underline flex items-center gap-1">Play Store <ExternalLink size={12} /></a>}
+                        {app.url && <a href={app.url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">Website <ExternalLink size={12} /></a>}
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
+                </div>
+              ))}</div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========== NETWORKING SECTION (নতুন) ========== */}
+      {selectedCategory === "networking" && (
+        <div className="space-y-5">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2"><Server className="text-purple-600" size={22} /> Networking</h3>
+              <span className="text-sm bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-300 px-3 py-1 rounded-full">{networkingStats.completed}/{networkingStats.total} topics {getMedal(networkingStats.completed)}</span>
+            </div>
+            <div className="h-2.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"><div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${networkingStats.percent}%` }} /></div>
+            <p className="text-xs text-gray-500 mt-2">{networkingStats.percent}% complete</p>
+          </div>
+
+          <TimerCard category="networking" timer={timer} startTimer={startTimer} stopTimer={stopTimer} resetTimer={resetTimer} formatTime={formatTime} color="purple" />
+
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
+            <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-3"><Monitor size={16} className="text-purple-600" /> Web Resources (PC)</h4>
+            <div className="space-y-2">
+              {networkingWebsites.map((site, idx) => (
+                <a key={idx} href={site.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all hover:shadow-md">
+                  <span className="text-2xl">{site.icon}</span>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2"><span className="font-medium text-gray-900 dark:text-white">{site.name}</span><ExternalLink size={14} className="text-gray-500" /></div>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{site.description}</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Networking Topics</h3>
+            <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+              <button onClick={() => setNetworkingView("grid")} className={`p-1.5 rounded ${networkingView === "grid" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}><Grid size={18} /></button>
+              <button onClick={() => setNetworkingView("list")} className={`p-1.5 rounded ${networkingView === "list" ? "bg-white dark:bg-gray-600 shadow" : "text-gray-600 dark:text-gray-400"}`}><List size={18} /></button>
+            </div>
+          </div>
+
+          <div className={networkingView === "grid" ? "grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" : "space-y-4"}>
+            {Object.entries(networkingTopics).map(([mainTopic, subtopics]) => {
+              const completedCount = subtopics.filter(sub => networkingProgress[`${mainTopic}||${sub}`]).length;
+              const totalCount = subtopics.length;
+              const percent = totalCount ? Math.round((completedCount / totalCount) * 100) : 0;
+              const isExpanded = expandedNetworkingMain[mainTopic] || false;
+
+              return (
+                <div key={mainTopic} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden h-fit hover:shadow-xl transition-all">
+                  <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50" onClick={() => setExpandedNetworkingMain(prev => ({ ...prev, [mainTopic]: !prev[mainTopic] }))}>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900 dark:text-white">{mainTopic}</h4>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div className="h-full bg-purple-600 rounded-full transition-all duration-500" style={{ width: `${percent}%` }} />
+                        </div>
+                        <span className="text-xs text-gray-600 dark:text-gray-400">{completedCount}/{totalCount}</span>
+                      </div>
+                    </div>
+                    <div className="ml-2">{isExpanded ? <ChevronUp size={18} className="text-gray-500" /> : <ChevronDown size={18} className="text-gray-500" />}</div>
+                  </div>
+                  {isExpanded && (
+                    <div className="border-t border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-800/50">
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {subtopics.map((sub) => {
+                          const key = `${mainTopic}||${sub}`;
+                          const completed = networkingProgress[key] || false;
+                          return (
+                            <div key={sub} className="flex items-start gap-2 p-2 rounded-lg hover:bg-white dark:hover:bg-gray-700 transition-colors">
+                              <button onClick={() => toggleNetworking(mainTopic, sub)} className="mt-0.5 flex-shrink-0">
+                                {completed ? <CheckCircle size={18} className="text-green-600" /> : <Circle size={18} className="text-gray-400" />}
+                              </button>
+                              <div className="flex-1">
+                                <span className={`text-sm ${completed ? "text-gray-500 line-through" : "text-gray-800 dark:text-gray-200"}`}>{sub}</span>
+                              </div>
+                              <button onClick={() => { setEditingNoteKey(key); setNoteText(notes[key] || ""); }} className="p-1 text-gray-400 hover:text-indigo-600 transition-colors"><Edit3 size={14} /></button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -1168,66 +1132,32 @@ const LearningRoadmap = () => {
       {/* ----- Achievements & Heatmap (উন্নত) ----- */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4">
-            <Calendar size={20} className="text-indigo-500" /> Last 30 Days Activity
-          </h3>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2 mb-4"><Calendar size={20} className="text-indigo-500" /> Last 30 Days Activity</h3>
           <div className="grid grid-cols-10 gap-1 sm:gap-2">
             {heatmap.map((value, i) => (
-              <div
-                key={i}
-                className={`aspect-square rounded-sm transition-all ${
-                  value === 0
-                    ? "bg-gray-100 dark:bg-gray-700"
-                    : "bg-green-500 dark:bg-green-600 hover:scale-110"
-                }`}
-                title={`Day ${i + 1}: ${value} activities`}
-              />
+              <div key={i} className={`aspect-square rounded-sm transition-all ${value === 0 ? "bg-gray-100 dark:bg-gray-700" : "bg-green-500 dark:bg-green-600 hover:scale-110"}`} title={`Day ${i + 1}: ${value} activities`} />
             ))}
           </div>
         </div>
 
         <div className="bg-gradient-to-br from-yellow-50 to-amber-50 dark:from-yellow-900/10 dark:to-amber-900/10 rounded-2xl p-6 border border-yellow-200 dark:border-yellow-800">
-          <div className="flex items-center gap-3 mb-4">
-            <Award className="text-yellow-600 dark:text-yellow-400" size={24} />
-            <span className="font-medium text-gray-900 dark:text-white text-lg">Achievements</span>
-          </div>
-          
+          <div className="flex items-center gap-3 mb-4"><Award className="text-yellow-600 dark:text-yellow-400" size={24} /><span className="font-medium text-gray-900 dark:text-white text-lg">Achievements</span></div>
           <div className="space-y-4">
-            {/* Grammar Progress with Medal */}
             <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Grammar</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {grammarStats.completed}/{grammarStats.total} {getMedal(grammarStats.completed)}
-                </span>
-              </div>
-              <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-600 rounded-full" style={{ width: `${grammarStats.percent}%` }} />
-              </div>
+              <div className="flex justify-between items-center mb-1"><span className="text-sm text-gray-700 dark:text-gray-300">Grammar</span><span className="text-sm font-semibold text-gray-900 dark:text-white">{grammarStats.completed}/{grammarStats.total} {getMedal(grammarStats.completed)}</span></div>
+              <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"><div className="h-full bg-blue-600 rounded-full" style={{ width: `${grammarStats.percent}%` }} /></div>
             </div>
-
-            {/* Quran Progress */}
             <div>
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-sm text-gray-700 dark:text-gray-300">Quran</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                  {quranStats.completed}/{quranStats.total} verses
-                </span>
-              </div>
-              <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-amber-600 rounded-full" style={{ width: `${quranStats.percent}%` }} />
-              </div>
+              <div className="flex justify-between items-center mb-1"><span className="text-sm text-gray-700 dark:text-gray-300">Quran</span><span className="text-sm font-semibold text-gray-900 dark:text-white">{quranStats.completed}/{quranStats.total} verses</span></div>
+              <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"><div className="h-full bg-amber-600 rounded-full" style={{ width: `${quranStats.percent}%` }} /></div>
             </div>
-
-            {/* Medal Milestones */}
+            <div>
+              <div className="flex justify-between items-center mb-1"><span className="text-sm text-gray-700 dark:text-gray-300">Networking</span><span className="text-sm font-semibold text-gray-900 dark:text-white">{networkingStats.completed}/{networkingStats.total} {getMedal(networkingStats.completed)}</span></div>
+              <div className="h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden"><div className="h-full bg-purple-600 rounded-full" style={{ width: `${networkingStats.percent}%` }} /></div>
+            </div>
             <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-400 pt-2 border-t border-gray-200 dark:border-gray-700">
-              <span className="flex items-center gap-1">🥉 10</span>
-              <span className="flex items-center gap-1">🥈 25</span>
-              <span className="flex items-center gap-1">🥇 50</span>
+              <span className="flex items-center gap-1">🥉 10</span><span className="flex items-center gap-1">🥈 25</span><span className="flex items-center gap-1">🥇 50</span>
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Next milestone: {grammarStats.completed < 10 ? "🥉 10" : grammarStats.completed < 25 ? "🥈 25" : "🥇 50"} subtopics
-            </p>
           </div>
         </div>
       </div>
@@ -1237,27 +1167,10 @@ const LearningRoadmap = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 max-w-md w-full">
             <h3 className="font-semibold mb-3 text-gray-900 dark:text-white">Add Note</h3>
-            <textarea
-              className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              rows="4"
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              placeholder="Write your note..."
-              autoFocus
-            />
+            <textarea className="w-full p-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white" rows="4" value={noteText} onChange={(e) => setNoteText(e.target.value)} placeholder="Write your note..." autoFocus />
             <div className="flex justify-end gap-2 mt-4">
-              <button
-                onClick={() => setEditingNoteKey(null)}
-                className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => saveNote(editingNoteKey)}
-                className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-              >
-                Save
-              </button>
+              <button onClick={() => setEditingNoteKey(null)} className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">Cancel</button>
+              <button onClick={() => saveNote(editingNoteKey)} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Save</button>
             </div>
           </div>
         </div>
@@ -1275,46 +1188,24 @@ const TimerCard = ({ category, timer, startTimer, stopTimer, resetTimer, formatT
     blue: "from-blue-500 to-indigo-600",
     amber: "from-amber-500 to-orange-600",
     emerald: "from-emerald-500 to-teal-600",
+    purple: "from-purple-500 to-pink-600",
   };
 
   return (
     <div className={`bg-gradient-to-r ${colorClasses[color]} rounded-xl shadow-lg p-4 flex items-center justify-between text-white`}>
       <div className="flex items-center gap-3">
         <Timer size={20} className="text-white/80" />
-        <span className="text-lg font-mono font-bold">
-          {formatTime(timer.seconds)}
-        </span>
+        <span className="text-lg font-mono font-bold">{formatTime(timer.seconds)}</span>
       </div>
       <div className="flex items-center gap-2">
         {!isTimerForThis ? (
-          <button
-            onClick={() => startTimer(category)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition backdrop-blur-sm"
-          >
-            <Play size={14} /> Start
-          </button>
+          <button onClick={() => startTimer(category)} className="flex items-center gap-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition backdrop-blur-sm"><Play size={14} /> Start</button>
         ) : timer.running ? (
-          <button
-            onClick={stopTimer}
-            className="flex items-center gap-1 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-sm transition"
-          >
-            <Pause size={14} /> Pause
-          </button>
+          <button onClick={stopTimer} className="flex items-center gap-1 px-3 py-1.5 bg-yellow-500 hover:bg-yellow-600 rounded-lg text-sm transition"><Pause size={14} /> Pause</button>
         ) : (
-          <button
-            onClick={() => startTimer(category)}
-            className="flex items-center gap-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition backdrop-blur-sm"
-          >
-            <Play size={14} /> Resume
-          </button>
+          <button onClick={() => startTimer(category)} className="flex items-center gap-1 px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm transition backdrop-blur-sm"><Play size={14} /> Resume</button>
         )}
-        <button
-          onClick={resetTimer}
-          className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition backdrop-blur-sm"
-          title="Reset timer"
-        >
-          <RotateCcw size={14} />
-        </button>
+        <button onClick={resetTimer} className="p-1.5 bg-white/20 hover:bg-white/30 rounded-lg transition backdrop-blur-sm" title="Reset timer"><RotateCcw size={14} /></button>
       </div>
     </div>
   );
