@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   Clock, Plus, Trash2, Edit2, Calendar, CheckCircle, XCircle,
@@ -15,6 +15,7 @@ const TimeBlockManager = () => {
     const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     return days[new Date().getDay()];
   };
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
 
   // ==================== CONSTANTS ====================
   const colors = [
@@ -131,7 +132,7 @@ const TimeBlockManager = () => {
     repeats: [],
     notifications: [],
     scheduledDay: null,
-    date: new Date().toISOString().split('T')[0],
+    date: getTodayDate(),
     repeatType: 'none',
     repeatEndDate: '',
     isTemplate: false
@@ -159,6 +160,11 @@ const TimeBlockManager = () => {
 
   // ✅ localStorage সাইজ দেখানোর জন্য স্টেট
   const [storageSize, setStorageSize] = useState(0);
+  // ✅ সর্বশেষ যে তারিখের জন্য রিকারিং ব্লক জেনারেট করা হয়েছে তা ট্র্যাক করা
+  const [lastGenerationDate, setLastGenerationDate] = useState(() => {
+    // প্রথম লোডে, আজকের তারিখ সেট করা যাতে আজকের জন্য জেনারেট না হয়
+    return getTodayDate();
+  });
 
   // ==================== HELPER FUNCTIONS ====================
   const calculateDuration = (start, end) => {
@@ -242,6 +248,7 @@ const TimeBlockManager = () => {
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
+    // শুধু মাস্টার ব্লকগুলো চিহ্নিত করি (যেগুলো টেমপ্লেট নয় এবং যাদের templateId নেই)
     const masterBlocks = timeBlocks.filter(block => 
       block.repeatType !== 'none' && !block.templateId && !block.isTemplate
     );
@@ -249,12 +256,24 @@ const TimeBlockManager = () => {
     let newBlocks = [];
 
     masterBlocks.forEach(master => {
+      // শুধু daily টাইপ হ্যান্ডেল করা হচ্ছে (প্রয়োজনে অন্যান্য টাইপ যোগ করা যাবে)
       if (master.repeatType === 'daily') {
+        // চেক করি আজকের জন্য এই মাস্টার থেকে কোনো ইন্সট্যান্স ইতিমধ্যে আছে কিনা
         const alreadyExists = timeBlocks.some(block => 
           block.templateId === master.id && block.date === todayStr
         );
 
+        // যদি না থাকে, তাহলে নতুন ইন্সট্যান্স তৈরি করি
         if (!alreadyExists) {
+          // যদি repeatEndDate সেট করা থাকে এবং তা আজকের আগে হয়, তাহলে বাদ দিন
+          if (master.repeatEndDate) {
+            const endDate = new Date(master.repeatEndDate);
+            endDate.setHours(0, 0, 0, 0);
+            if (endDate < today) {
+              return; // এই মাস্টার বাদ দিন
+            }
+          }
+
           const newBlock = {
             ...master,
             id: Date.now() + Math.random() * 10000,
@@ -264,18 +283,21 @@ const TimeBlockManager = () => {
             completedDate: null,
             createdAt: new Date(),
             lastModified: new Date(),
-            templateId: master.id,
+            templateId: master.id, // মূল মাস্টারের আইডি সংরক্ষণ করি
             scheduledDay: null
           };
           newBlocks.push(newBlock);
         }
       }
+      // TODO: অন্যান্য repeatType (weekly, monthly, custom) এর জন্যও লজিক যোগ করা যেতে পারে
     });
 
     if (newBlocks.length > 0) {
       setTimeBlocks(prev => [...prev, ...newBlocks]);
       toast.success(`${newBlocks.length} today's recurring block(s) generated`);
     }
+    // সর্বশেষ জেনারেশন তারিখ আপডেট
+    setLastGenerationDate(todayStr);
   };
 
   // ==================== CLEANUP OLD BLOCKS (90 DAYS HISTORY) ====================
@@ -332,17 +354,19 @@ const TimeBlockManager = () => {
   };
 
   // ==================== EFFECTS ====================
+  // মূল ডেটা সেভ এবং স্ট্যাটস আপডেট (রিকারিং জেনারেশন বাদ)
   useEffect(() => {
     localStorage.setItem('advancedTimeBlocks', JSON.stringify(timeBlocks));
     computeStats();
-    generateRecurringBlocks();
-    cleanupOldBlocks();
+    cleanupOldBlocks(); // পুরোনো ব্লক ক্লিনআপ
   }, [timeBlocks]);
 
+  // টেমপ্লেট সেভ
   useEffect(() => {
     localStorage.setItem('timeBlockTemplates', JSON.stringify(templates));
   }, [templates]);
 
+  // টাইমার ইফেক্ট
   useEffect(() => {
     let interval;
     if (timer && activeTimer) {
@@ -370,7 +394,7 @@ const TimeBlockManager = () => {
     updateStorageSize();
     const interval = setInterval(updateStorageSize, 5000);
     return () => clearInterval(interval);
-  }, [timeBlocks]); // timeBlocks পরিবর্তন হলে আপডেট হবে
+  }, [timeBlocks]);
 
   // ✅ সতর্কতা (ঐচ্ছিক)
   useEffect(() => {
@@ -378,6 +402,23 @@ const TimeBlockManager = () => {
       toast.warning('localStorage প্রায় পূর্ণ হয়ে আসছে। পুরোনো ডাটা ডিলিট করুন বা এক্সপোর্ট করে ক্লিয়ার করুন।');
     }
   }, [storageSize]);
+
+  // ✅ নতুন দিন চেক করে রিকারিং ব্লক জেনারেট করার জন্য ইন্টারভাল
+  useEffect(() => {
+    const checkNewDayAndGenerate = () => {
+      const todayStr = getTodayDate();
+      if (lastGenerationDate !== todayStr) {
+        generateRecurringBlocks();
+      }
+    };
+
+    // প্রথমবার চেক (যদি লোড হওয়ার সময় দিন পরিবর্তিত হয়ে থাকে)
+    checkNewDayAndGenerate();
+
+    // প্রতি মিনিটে চেক
+    const interval = setInterval(checkNewDayAndGenerate, 60000); // 60 সেকেন্ড
+    return () => clearInterval(interval);
+  }, [lastGenerationDate]); // শুধু lastGenerationDate পরিবর্তনে নির্ভর করে
 
   // ==================== CRUD ====================
   const addTimeBlock = (e) => {
@@ -389,17 +430,30 @@ const TimeBlockManager = () => {
 
     const prevBlocks = [...timeBlocks];
     const newBlockId = Date.now();
+
+    // রিকারিং ব্লকের জন্য date সঠিকভাবে সেট করা
+    let blockDate = null;
+    let scheduledDay = null;
+    if (formData.repeatType === 'none') {
+      // এককালীন ব্লক: ফর্মের তারিখ ব্যবহার করি
+      blockDate = formData.date;
+    } else {
+      // রিকারিং ব্লক: date = null, scheduledDay = null (রিকারিং ব্লক নির্দিষ্ট তারিখের নয়)
+      blockDate = null;
+      scheduledDay = null;
+    }
+
     const newBlock = {
       id: newBlockId,
       ...formData,
+      date: blockDate,
+      scheduledDay: scheduledDay,
       completed: false,
       progress: 0,
       createdAt: new Date(),
       lastModified: new Date(),
       dependencies: [],
-      scheduledDay: formData.repeats.length === 0 ? null : (activeDay || getCurrentDayAbbr()),
       completedDate: null,
-      date: formData.repeats.length === 0 ? formData.date : null,
       repeatType: formData.repeatType,
       repeatEndDate: formData.repeatEndDate,
       isTemplate: formData.isTemplate,
@@ -444,7 +498,7 @@ const TimeBlockManager = () => {
   const loadTemplate = (template) => {
     setFormData({
       ...template,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDate(),
       repeatType: 'none',
       repeatEndDate: '',
       isTemplate: false
@@ -465,12 +519,23 @@ const TimeBlockManager = () => {
     }
 
     const prevBlocks = [...timeBlocks];
+
+    // রিকারিং ব্লকের জন্য date সঠিকভাবে সেট করা
+    let blockDate = null;
+    let scheduledDay = null;
+    if (formData.repeatType === 'none') {
+      blockDate = formData.date;
+    } else {
+      blockDate = null;
+      scheduledDay = null;
+    }
+
     const newBlocks = timeBlocks.map(block =>
       block.id === editingId ? {
         ...block,
         ...formData,
-        scheduledDay: formData.repeats.length === 0 ? null : (block.scheduledDay || activeDay || getCurrentDayAbbr()),
-        date: formData.repeats.length === 0 ? formData.date : null,
+        date: blockDate,
+        scheduledDay: scheduledDay,
         repeatType: formData.repeatType,
         repeatEndDate: formData.repeatEndDate,
         isTemplate: formData.isTemplate,
@@ -530,7 +595,7 @@ const TimeBlockManager = () => {
 
   const toggleComplete = (id) => {
     const prevBlocks = [...timeBlocks];
-    const now = new Date().toISOString().split('T')[0];
+    const now = getTodayDate();
     const newBlocks = timeBlocks.map(block =>
       block.id === id ? {
         ...block,
@@ -587,7 +652,7 @@ const TimeBlockManager = () => {
       repeats: [],
       notifications: [],
       scheduledDay: null,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDate(),
       repeatType: 'none',
       repeatEndDate: '',
       isTemplate: false
@@ -609,7 +674,7 @@ const TimeBlockManager = () => {
       repeats: block.repeats || [],
       notifications: block.notifications || [],
       scheduledDay: block.scheduledDay || null,
-      date: block.date || new Date().toISOString().split('T')[0],
+      date: block.date || getTodayDate(),
       repeatType: block.repeatType || 'none',
       repeatEndDate: block.repeatEndDate || '',
       isTemplate: block.isTemplate || false
@@ -658,6 +723,7 @@ const TimeBlockManager = () => {
     setFormData({
       ...formData,
       repeats: newRepeats,
+      // যদি কোনো দিন সিলেক্ট করা থাকে, তাহলে scheduledDay এবং date null হবে
       scheduledDay: newRepeats.length > 0 ? null : formData.scheduledDay,
       date: newRepeats.length > 0 ? null : formData.date
     });
@@ -702,7 +768,7 @@ const TimeBlockManager = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `time-blocks-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `time-blocks-${getTodayDate()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1210,7 +1276,7 @@ const TimeBlockManager = () => {
                       type="date"
                       value={formData.repeatEndDate}
                       onChange={(e) => setFormData({...formData, repeatEndDate: e.target.value})}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={getTodayDate()}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
                     />
                     <p className="text-xs text-gray-500 mt-1">Leave empty for indefinite repeating (auto-generates daily)</p>
@@ -1225,7 +1291,7 @@ const TimeBlockManager = () => {
                       type="date"
                       value={formData.date || ''}
                       onChange={(e) => setFormData({...formData, date: e.target.value})}
-                      min={new Date().toISOString().split('T')[0]}
+                      min={getTodayDate()}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
                     />
                   </div>
