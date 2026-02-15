@@ -157,6 +157,9 @@ const TimeBlockManager = () => {
     byPriority: {}
   });
 
+  // ✅ localStorage সাইজ দেখানোর জন্য স্টেট
+  const [storageSize, setStorageSize] = useState(0);
+
   // ==================== HELPER FUNCTIONS ====================
   const calculateDuration = (start, end) => {
     const [startHour, startMin] = start.split(':').map(Number);
@@ -214,13 +217,31 @@ const TimeBlockManager = () => {
     }
   };
 
+  // ✅ localStorage সাইজ গণনা ফাংশন
+  const getLocalStorageSize = () => {
+    let total = 0;
+    for (let key in localStorage) {
+      if (localStorage.hasOwnProperty(key)) {
+        total += (localStorage[key].length * 2); // প্রতি ক্যারেক্টার ২ বাইট (UTF-16)
+      }
+    }
+    return total;
+  };
+
+  const formatSize = (bytes) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   // ==================== RECURRING BLOCK GENERATOR (ONLY FOR TODAY) ====================
   const generateRecurringBlocks = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const todayStr = today.toISOString().split('T')[0];
 
-    // মাস্টার ব্লক খুঁজি: যারা নিজে টেমপ্লেট এবং repeatType != none
     const masterBlocks = timeBlocks.filter(block => 
       block.repeatType !== 'none' && !block.templateId && !block.isTemplate
     );
@@ -228,14 +249,12 @@ const TimeBlockManager = () => {
     let newBlocks = [];
 
     masterBlocks.forEach(master => {
-      // যদি repeatType = daily হয় এবং আজকের জন্য ব্লক না থাকে
       if (master.repeatType === 'daily') {
         const alreadyExists = timeBlocks.some(block => 
           block.templateId === master.id && block.date === todayStr
         );
 
         if (!alreadyExists) {
-          // নতুন ব্লক তৈরি (শুধু আজকের জন্য)
           const newBlock = {
             ...master,
             id: Date.now() + Math.random() * 10000,
@@ -251,12 +270,8 @@ const TimeBlockManager = () => {
           newBlocks.push(newBlock);
         }
       }
-      
-      // যদি চান, অন্যান্য repeatType (weekly, monthly, custom) এর জন্যও আজকের দিন চেক করা যেতে পারে
-      // তবে আপনার কথামতো শুধু daily এর জন্য করলাম
     });
 
-    // যদি নতুন ব্লক থাকে, তাহলে state আপডেট করি
     if (newBlocks.length > 0) {
       setTimeBlocks(prev => [...prev, ...newBlocks]);
       toast.success(`${newBlocks.length} today's recurring block(s) generated`);
@@ -268,10 +283,9 @@ const TimeBlockManager = () => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const cutoffDate = new Date(today);
-    cutoffDate.setDate(cutoffDate.getDate() - 90); // 90 days ago
+    cutoffDate.setDate(cutoffDate.getDate() - 90);
 
     const filteredBlocks = timeBlocks.filter(block => {
-      // যদি ব্লকের date না থাকে, রাখি (যেমন টেমপ্লেট বা ত্রুটিপূর্ণ)
       if (!block.date) return true;
       const blockDate = new Date(block.date);
       blockDate.setHours(0, 0, 0, 0);
@@ -281,6 +295,17 @@ const TimeBlockManager = () => {
     if (filteredBlocks.length !== timeBlocks.length) {
       setTimeBlocks(filteredBlocks);
       toast.info(`Cleaned up old blocks (${timeBlocks.length - filteredBlocks.length} removed)`);
+    }
+  };
+
+  // ==================== CLEAR ALL BLOCKS ====================
+  const clearAllBlocks = () => {
+    if (window.confirm('Are you sure you want to delete ALL time blocks? This cannot be undone.')) {
+      const prevBlocks = [...timeBlocks];
+      setTimeBlocks([]);
+      setSelectedBlocks([]);
+      saveToHistory('clear_all', prevBlocks, []);
+      toast.success('All time blocks cleared');
     }
   };
 
@@ -310,8 +335,8 @@ const TimeBlockManager = () => {
   useEffect(() => {
     localStorage.setItem('advancedTimeBlocks', JSON.stringify(timeBlocks));
     computeStats();
-    generateRecurringBlocks(); // শুধু আজকের জন্য ব্লক তৈরি করবে
-    cleanupOldBlocks(); // ৯০ দিনের বেশি পুরনো ব্লক মুছে ফেল
+    generateRecurringBlocks();
+    cleanupOldBlocks();
   }, [timeBlocks]);
 
   useEffect(() => {
@@ -336,6 +361,23 @@ const TimeBlockManager = () => {
     }
     return () => clearInterval(interval);
   }, [timer, activeTimer]);
+
+  // ✅ localStorage সাইজ আপডেট করার ইফেক্ট
+  useEffect(() => {
+    const updateStorageSize = () => {
+      setStorageSize(getLocalStorageSize());
+    };
+    updateStorageSize();
+    const interval = setInterval(updateStorageSize, 5000);
+    return () => clearInterval(interval);
+  }, [timeBlocks]); // timeBlocks পরিবর্তন হলে আপডেট হবে
+
+  // ✅ সতর্কতা (ঐচ্ছিক)
+  useEffect(() => {
+    if (storageSize > 4.5 * 1024 * 1024) { // 4.5 MB
+      toast.warning('localStorage প্রায় পূর্ণ হয়ে আসছে। পুরোনো ডাটা ডিলিট করুন বা এক্সপোর্ট করে ক্লিয়ার করুন।');
+    }
+  }, [storageSize]);
 
   // ==================== CRUD ====================
   const addTimeBlock = (e) => {
@@ -366,7 +408,6 @@ const TimeBlockManager = () => {
 
     let newBlocks = [...timeBlocks, newBlock];
 
-    // If this is a template, add to templates list
     if (formData.isTemplate) {
       const template = { ...newBlock, isTemplate: true, id: newBlockId };
       setTemplates(prev => [...prev, template]);
@@ -707,7 +748,7 @@ const TimeBlockManager = () => {
   // ==================== RENDER ====================
   return (
     <div className="space-y-6">
-      {/* Header - Updated to show today's blocks count when day is selected */}
+      {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">⏰ Time Block Manager</h2>
@@ -717,6 +758,10 @@ const TimeBlockManager = () => {
             ) : (
               <>Plan your day with precision • {stats.total} blocks • {stats.totalHours} total hours</>
             )}
+          </p>
+          {/* ✅ localStorage ব্যবহারের তথ্য */}
+          <p className="text-xs text-gray-400 mt-1">
+            Storage: {formatSize(storageSize)} used
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -743,6 +788,14 @@ const TimeBlockManager = () => {
           >
             <Plus size={20} />
             Add Time Block
+          </button>
+          {/* ✅ Clear All Button */}
+          <button
+            onClick={clearAllBlocks}
+            className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium"
+          >
+            <Trash2 size={16} />
+            Clear All
           </button>
           <button
             onClick={exportData}
