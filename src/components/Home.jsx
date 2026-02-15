@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import { motion } from "framer-motion";
 import {
   Calendar,
@@ -25,34 +25,8 @@ import {
   Sun,
 } from "lucide-react";
 
-const Home = ({ language, stats, userName = "User", onNavigate }) => {
+const Home = ({ language, stats, userName = "User", onNavigate, goals = [], tasks = [] }) => {
   const t = translations[language];
-
-  // ---------- টাস্ক লোড ----------
-  const [tasks, setTasks] = useState([]);
-  const [goals, setGoals] = useState([]);
-
-  useEffect(() => {
-    const loadTasks = () => {
-      try {
-        const saved = localStorage.getItem('advancedTimeBlocks');
-        if (saved) setTasks(JSON.parse(saved));
-      } catch (e) { console.error(e); }
-    };
-    const loadGoals = () => {
-      try {
-        const saved = localStorage.getItem('goalsList');
-        if (saved) setGoals(JSON.parse(saved));
-      } catch (e) { console.error(e); }
-    };
-    loadTasks();
-    loadGoals();
-    const interval = setInterval(() => {
-      loadTasks();
-      loadGoals();
-    }, 2000);
-    return () => clearInterval(interval);
-  }, []);
 
   // ---------- গতকালের অসম্পূর্ণ টাস্ক (date ফিল্ড সহ) ----------
   const yesterdayIncomplete = useMemo(() => {
@@ -277,7 +251,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
         <div className="lg:col-span-1 space-y-4">
           <StatCard
             title={t.totalTasks}
-            value={stats.totalTasks}
+            value={stats?.totalTasks || 0}
             icon={<ListTodo size={22} />}
             gradient="from-blue-500 to-blue-600"
             lightBg="bg-blue-50 dark:bg-blue-900/20"
@@ -287,7 +261,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
           />
           <StatCard
             title={t.completedTasks}
-            value={stats.completedTasks}
+            value={stats?.completedTasks || 0}
             icon={<CheckCircle size={22} />}
             gradient="from-green-500 to-green-600"
             lightBg="bg-green-50 dark:bg-green-900/20"
@@ -299,7 +273,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
         <div className="lg:col-span-1 space-y-4">
           <StatCard
             title={t.productivity}
-            value={`${stats.productivity}%`}
+            value={`${stats?.productivity || 0}%`}
             icon={<TrendingUp size={22} />}
             gradient="from-purple-500 to-purple-600"
             lightBg="bg-purple-50 dark:bg-purple-900/20"
@@ -309,7 +283,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
           />
           <StatCard
             title={t.focusTime}
-            value={`${stats.focusTime}h`}
+            value={`${stats?.focusTime || 0}h`}
             icon={<Target size={22} />}
             gradient="from-amber-500 to-amber-600"
             lightBg="bg-amber-50 dark:bg-amber-900/20"
@@ -365,7 +339,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
                     </p>
                   </div>
                   <button
-                    onClick={() => onNavigate('/today')}
+                    onClick={() => onNavigate('today')}
                     className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs rounded-full hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center gap-1 font-medium"
                   >
                     <CheckCircle size={12} /> {language === 'bn' ? 'সম্পন্ন কর' : 'Complete'}
@@ -411,7 +385,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
                     </p>
                   </div>
                   <button
-                    onClick={() => onNavigate('/today')}
+                    onClick={() => onNavigate('today')}
                     className="px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs rounded-full hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center gap-1 font-medium"
                   >
                     <CheckCircle size={12} /> {language === 'bn' ? 'সম্পন্ন কর' : 'Complete'}
@@ -426,7 +400,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
             </div>
             <div className="p-3 border-t border-amber-100 dark:border-amber-800/50 text-center bg-amber-50/50 dark:bg-amber-900/10">
               <button
-                onClick={() => onNavigate('/history')}
+                onClick={() => onNavigate('history')}
                 className="text-sm text-amber-600 dark:text-amber-400 hover:underline flex items-center justify-center gap-1 font-medium"
               >
                 <Eye size={14} /> {language === 'bn' ? 'ইতিহাসে দেখুন' : 'View all in History'}

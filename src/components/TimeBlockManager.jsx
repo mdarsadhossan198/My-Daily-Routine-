@@ -157,94 +157,6 @@ const TimeBlockManager = () => {
     byPriority: {}
   });
 
-  // ==================== EFFECTS ====================
-  useEffect(() => {
-    localStorage.setItem('advancedTimeBlocks', JSON.stringify(timeBlocks));
-    computeStats();
-    generateRecurringBlocks();
-  }, [timeBlocks]);
-
-  useEffect(() => {
-    localStorage.setItem('timeBlockTemplates', JSON.stringify(templates));
-  }, [templates]);
-
-  useEffect(() => {
-    let interval;
-    if (timer && activeTimer) {
-      interval = setInterval(() => {
-        setTimerSeconds(prev => {
-          if (prev <= 0) {
-            clearInterval(interval);
-            toast.success('Time block completed! 🎉');
-            setTimer(null);
-            setActiveTimer(null);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [timer, activeTimer]);
-
-  // ==================== RECURRING BLOCK GENERATOR ====================
-  const generateRecurringBlocks = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-
-    const recurringTemplates = timeBlocks.filter(block => 
-      block.repeatType !== 'none' && !block.isTemplate
-    );
-
-    recurringTemplates.forEach(template => {
-      // Check if we already have a block for tomorrow
-      const hasTomorrowBlock = timeBlocks.some(block => 
-        block.templateId === template.id && 
-        block.date === tomorrow.toISOString().split('T')[0]
-      );
-
-      if (!hasTomorrowBlock && template.repeatType !== 'none') {
-        // Create new block for tomorrow
-        const newBlock = {
-          ...template,
-          id: Date.now() + Math.random(),
-          date: tomorrow.toISOString().split('T')[0],
-          completed: false,
-          progress: 0,
-          completedDate: null,
-          createdAt: new Date(),
-          lastModified: new Date(),
-          templateId: template.id
-        };
-        setTimeBlocks(prev => [...prev, newBlock]);
-      }
-    });
-  };
-
-  // ==================== STATS ====================
-  const computeStats = () => {
-    const newStats = {
-      total: timeBlocks.length,
-      completed: timeBlocks.filter(b => b.completed).length,
-      upcoming: timeBlocks.filter(b => !b.completed && isUpcoming(b)).length,
-      totalHours: timeBlocks.reduce((total, block) => total + calculateDuration(block.start, block.end).hours, 0),
-      byCategory: {},
-      byPriority: {}
-    };
-
-    categories.forEach(cat => {
-      newStats.byCategory[cat.id] = timeBlocks.filter(b => b.category === cat.id).length;
-    });
-
-    priorities.forEach(pri => {
-      newStats.byPriority[pri.id] = timeBlocks.filter(b => b.priority === pri.id).length;
-    });
-
-    setStats(newStats);
-  };
-
   // ==================== HELPER FUNCTIONS ====================
   const calculateDuration = (start, end) => {
     const [startHour, startMin] = start.split(':').map(Number);
@@ -301,6 +213,129 @@ const TimeBlockManager = () => {
       toast.success('Redo successful');
     }
   };
+
+  // ==================== RECURRING BLOCK GENERATOR (ONLY FOR TODAY) ====================
+  const generateRecurringBlocks = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+
+    // মাস্টার ব্লক খুঁজি: যারা নিজে টেমপ্লেট এবং repeatType != none
+    const masterBlocks = timeBlocks.filter(block => 
+      block.repeatType !== 'none' && !block.templateId && !block.isTemplate
+    );
+
+    let newBlocks = [];
+
+    masterBlocks.forEach(master => {
+      // যদি repeatType = daily হয় এবং আজকের জন্য ব্লক না থাকে
+      if (master.repeatType === 'daily') {
+        const alreadyExists = timeBlocks.some(block => 
+          block.templateId === master.id && block.date === todayStr
+        );
+
+        if (!alreadyExists) {
+          // নতুন ব্লক তৈরি (শুধু আজকের জন্য)
+          const newBlock = {
+            ...master,
+            id: Date.now() + Math.random() * 10000,
+            date: todayStr,
+            completed: false,
+            progress: 0,
+            completedDate: null,
+            createdAt: new Date(),
+            lastModified: new Date(),
+            templateId: master.id,
+            scheduledDay: null
+          };
+          newBlocks.push(newBlock);
+        }
+      }
+      
+      // যদি চান, অন্যান্য repeatType (weekly, monthly, custom) এর জন্যও আজকের দিন চেক করা যেতে পারে
+      // তবে আপনার কথামতো শুধু daily এর জন্য করলাম
+    });
+
+    // যদি নতুন ব্লক থাকে, তাহলে state আপডেট করি
+    if (newBlocks.length > 0) {
+      setTimeBlocks(prev => [...prev, ...newBlocks]);
+      toast.success(`${newBlocks.length} today's recurring block(s) generated`);
+    }
+  };
+
+  // ==================== CLEANUP OLD BLOCKS (90 DAYS HISTORY) ====================
+  const cleanupOldBlocks = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const cutoffDate = new Date(today);
+    cutoffDate.setDate(cutoffDate.getDate() - 90); // 90 days ago
+
+    const filteredBlocks = timeBlocks.filter(block => {
+      // যদি ব্লকের date না থাকে, রাখি (যেমন টেমপ্লেট বা ত্রুটিপূর্ণ)
+      if (!block.date) return true;
+      const blockDate = new Date(block.date);
+      blockDate.setHours(0, 0, 0, 0);
+      return blockDate >= cutoffDate;
+    });
+
+    if (filteredBlocks.length !== timeBlocks.length) {
+      setTimeBlocks(filteredBlocks);
+      toast.info(`Cleaned up old blocks (${timeBlocks.length - filteredBlocks.length} removed)`);
+    }
+  };
+
+  // ==================== STATS ====================
+  const computeStats = () => {
+    const newStats = {
+      total: timeBlocks.length,
+      completed: timeBlocks.filter(b => b.completed).length,
+      upcoming: timeBlocks.filter(b => !b.completed && isUpcoming(b)).length,
+      totalHours: timeBlocks.reduce((total, block) => total + calculateDuration(block.start, block.end).hours, 0),
+      byCategory: {},
+      byPriority: {}
+    };
+
+    categories.forEach(cat => {
+      newStats.byCategory[cat.id] = timeBlocks.filter(b => b.category === cat.id).length;
+    });
+
+    priorities.forEach(pri => {
+      newStats.byPriority[pri.id] = timeBlocks.filter(b => b.priority === pri.id).length;
+    });
+
+    setStats(newStats);
+  };
+
+  // ==================== EFFECTS ====================
+  useEffect(() => {
+    localStorage.setItem('advancedTimeBlocks', JSON.stringify(timeBlocks));
+    computeStats();
+    generateRecurringBlocks(); // শুধু আজকের জন্য ব্লক তৈরি করবে
+    cleanupOldBlocks(); // ৯০ দিনের বেশি পুরনো ব্লক মুছে ফেল
+  }, [timeBlocks]);
+
+  useEffect(() => {
+    localStorage.setItem('timeBlockTemplates', JSON.stringify(templates));
+  }, [templates]);
+
+  useEffect(() => {
+    let interval;
+    if (timer && activeTimer) {
+      interval = setInterval(() => {
+        setTimerSeconds(prev => {
+          if (prev <= 0) {
+            clearInterval(interval);
+            toast.success('Time block completed! 🎉');
+            setTimer(null);
+            setActiveTimer(null);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [timer, activeTimer]);
 
   // ==================== CRUD ====================
   const addTimeBlock = (e) => {
@@ -672,12 +707,16 @@ const TimeBlockManager = () => {
   // ==================== RENDER ====================
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header - Updated to show today's blocks count when day is selected */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">⏰ Time Block Manager</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">
-            Plan your day with precision • {stats.total} blocks • {stats.totalHours} total hours
+            {activeDay ? (
+              <>Today's blocks: {filteredBlocks.length} • {stats.totalHours} total hours</>
+            ) : (
+              <>Plan your day with precision • {stats.total} blocks • {stats.totalHours} total hours</>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -1121,7 +1160,7 @@ const TimeBlockManager = () => {
                       min={new Date().toISOString().split('T')[0]}
                       className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Leave empty for indefinite repeating</p>
+                    <p className="text-xs text-gray-500 mt-1">Leave empty for indefinite repeating (auto-generates daily)</p>
                   </div>
                 )}
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
 import { Toaster, toast } from 'react-hot-toast';
 import {
   Calendar,
@@ -48,6 +48,8 @@ function App() {
 }
 
 function AppContent() {
+  const navigate = useNavigate(); // ✅ for navigation
+
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('theme') || 'light';
   });
@@ -416,7 +418,20 @@ function AppContent() {
         <div className="p-4 sm:p-6 lg:p-8">
           <div className="animate-fadeIn">
             <Routes>
-              <Route path="/" element={<Home stats={stats} streak={streak} goals={goals} recentTasks={tasks} language={appLanguage} onNavigate={(path) => window.location.href = path} />} />
+              {/* ✅ Home এখন tasks ও goals প্রপ পায়, এবং onNavigate-এ navigate ব্যবহার করে */}
+              <Route
+                path="/"
+                element={
+                  <Home
+                    stats={stats}
+                    streak={streak}
+                    goals={goals}
+                    tasks={tasks}          // recentTasks এর পরিবর্তে tasks
+                    language={appLanguage}
+                    onNavigate={(path) => navigate(`/${path}`)} // নেভিগেট ফাংশন
+                  />
+                }
+              />
               <Route path="/today" element={<ActivityLog />} />
               <Route path="/blocks" element={<TimeBlockManager />} />
               <Route path="/weekly" element={<WeeklyReview />} />
@@ -443,9 +458,6 @@ function AppContent() {
           <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
             <p>start day this my 14/02/2026</p>
           </div>
-          {/* টেস্ট ডার্ক মোড */}
-{/* টেস্ট ডার্ক মোড */}
-
         </div>
       </main>
 
