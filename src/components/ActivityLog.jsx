@@ -29,7 +29,9 @@ import {
   BellOff,
   Grid,
   List,
-  Filter
+  Filter,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 // ---------- আপনার ডিফল্ট সেটিংস এখানে পরিবর্তন করুন ----------
@@ -38,6 +40,7 @@ const DEFAULT_VIEW_MODE = 'list';      // 'list' বা 'grid'
 const DEFAULT_FILTER_STATUS = 'all';
 const DEFAULT_FILTER_CATEGORY = 'all';
 const DEFAULT_SORT_BY = 'time';
+const DEFAULT_SHOW_ONLY_TODAY = true;  // শুধু আজকের টাস্ক দেখাবে
 // ------------------------------------------------------------
 
 const ActivityLog = () => {
@@ -64,6 +67,10 @@ const ActivityLog = () => {
   const [gridColumns, setGridColumns] = useState(() => {
     const saved = localStorage.getItem('activityLogGridColumns');
     return saved ? parseInt(saved, 10) : DEFAULT_GRID_COLUMNS;
+  });
+  const [showOnlyToday, setShowOnlyToday] = useState(() => {
+    const saved = localStorage.getItem('showOnlyToday');
+    return saved !== null ? JSON.parse(saved) : DEFAULT_SHOW_ONLY_TODAY;
   });
 
   // Notifications state
@@ -121,6 +128,10 @@ const ActivityLog = () => {
   }, [gridColumns]);
 
   useEffect(() => {
+    localStorage.setItem('showOnlyToday', JSON.stringify(showOnlyToday));
+  }, [showOnlyToday]);
+
+  useEffect(() => {
     localStorage.setItem('notificationsEnabled', JSON.stringify(notificationsEnabled));
   }, [notificationsEnabled]);
 
@@ -155,9 +166,11 @@ const ActivityLog = () => {
     const checkUpcomingTasks = () => {
       const now = new Date();
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const todayStr = now.toISOString().split('T')[0];
       
       timeBlocks.forEach(task => {
-        if (!task.completed && task.start && task.start.trim() === currentTime) {
+        // শুধু আজকের টাস্কের জন্য রিমাইন্ডার দেখাও
+        if (!task.completed && task.date === todayStr && task.start && task.start.trim() === currentTime) {
           new Notification('⏰ Task Reminder', {
             body: `It's time to start: ${task.title}`,
             icon: '/favicon.ico'
@@ -284,12 +297,28 @@ const ActivityLog = () => {
     toast.info('Timer stopped');
   };
 
+  // Get today's date string
+  const todayStr = new Date().toISOString().split('T')[0];
+
   // Filtering and sorting
   const getFilteredTasks = () => {
     let filtered = timeBlocks;
+    
+    // প্রথমে showOnlyToday ফিল্টার প্রয়োগ
+    if (showOnlyToday) {
+      filtered = filtered.filter(task => {
+        // যদি task.date থাকে, তাহলে সেটার সাথে তুলনা; না থাকলে ধরে নিই আজকের (পুরোনো ডেটা সাপোর্ট)
+        return task.date ? task.date === todayStr : true; // যদি তারিখ না থাকে, দেখাব (ধরে নিই আজকের)
+      });
+    }
+
+    // স্ট্যাটাস ফিল্টার
     if (filterStatus === 'completed') filtered = filtered.filter(t => t.completed);
     else if (filterStatus === 'pending') filtered = filtered.filter(t => !t.completed);
+    
+    // ক্যাটাগরি ফিল্টার
     if (filterCategory !== 'all') filtered = filtered.filter(t => t.category === filterCategory);
+    
     return filtered;
   };
 
@@ -309,7 +338,7 @@ const ActivityLog = () => {
   const filteredTasks = getFilteredTasks();
   const displayedTasks = getSortedTasks(filteredTasks);
 
-  // Stats
+  // Stats (সমস্ত টাস্কের উপর ভিত্তি করে)
   const total = timeBlocks.length;
   const completed = timeBlocks.filter(t => t.completed).length;
   const pending = total - completed;
@@ -497,6 +526,21 @@ const ActivityLog = () => {
             <option value="priority">Sort by Priority</option>
             <option value="title">Sort by Title</option>
           </select>
+
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-600 mx-2"></div>
+
+          <button
+            onClick={() => setShowOnlyToday(!showOnlyToday)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 transition ${
+              showOnlyToday
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
+            }`}
+            title={showOnlyToday ? 'Showing only today\'s tasks' : 'Showing all tasks'}
+          >
+            {showOnlyToday ? <Eye size={16} /> : <EyeOff size={16} />}
+            {showOnlyToday ? 'Today Only' : 'All Tasks'}
+          </button>
         </div>
       </div>
 
@@ -690,8 +734,9 @@ const ActivityLog = () => {
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Clock size={20} className="text-blue-500" /> 
-            {filterStatus === 'all' ? 'All Tasks' : filterStatus === 'completed' ? 'Completed Tasks' : 'Pending Tasks'}
+            {filterStatus === 'all' ? (showOnlyToday ? "Today's Tasks" : "All Tasks") : filterStatus === 'completed' ? 'Completed Tasks' : 'Pending Tasks'}
             {filterCategory !== 'all' && ` • ${categories.find(c => c.id === filterCategory)?.label}`}
+            {showOnlyToday && <span className="text-sm font-normal text-gray-500 dark:text-gray-400 ml-2">(showing today only)</span>}
           </h3>
           <span className="text-sm text-gray-500 dark:text-gray-400">
             {displayedTasks.length} tasks
@@ -707,7 +752,7 @@ const ActivityLog = () => {
               No tasks match your filters
             </h3>
             <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Try changing the status or category filter.
+              {showOnlyToday ? "You have no tasks scheduled for today." : "Try changing the status or category filter."}
             </p>
           </div>
         ) : viewMode === 'list' ? (
@@ -720,7 +765,11 @@ const ActivityLog = () => {
               const PriorityIcon = priority?.icon || ChevronUp;
               const isActiveTimer = activeTimer === task.id;
               const duration = calculateDuration(task.start, task.end);
-              const isOverdue = !task.completed && task.start && new Date(`${new Date().toISOString().split('T')[0]}T${task.start}`) < new Date();
+              // ওভারডিউ চেক: শুধু আজকের টাস্ক এবং সময় পার হয়ে গেলে
+              const isOverdue = !task.completed && 
+                                task.date === todayStr && 
+                                task.start && 
+                                new Date(`${todayStr}T${task.start}`) < new Date();
 
               return (
                 <div
@@ -862,7 +911,10 @@ const ActivityLog = () => {
               const PriorityIcon = priority?.icon || ChevronUp;
               const isActiveTimer = activeTimer === task.id;
               const duration = calculateDuration(task.start, task.end);
-              const isOverdue = !task.completed && task.start && new Date(`${new Date().toISOString().split('T')[0]}T${task.start}`) < new Date();
+              const isOverdue = !task.completed && 
+                                task.date === todayStr && 
+                                task.start && 
+                                new Date(`${todayStr}T${task.start}`) < new Date();
 
               return (
                 <div

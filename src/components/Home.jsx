@@ -22,6 +22,7 @@ import {
   Flame,
   Star,
   Eye,
+  Sun,
 } from "lucide-react";
 
 const Home = ({ language, stats, userName = "User", onNavigate }) => {
@@ -30,7 +31,6 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
   // ---------- টাস্ক লোড ----------
   const [tasks, setTasks] = useState([]);
   const [goals, setGoals] = useState([]);
-  const [activityLog, setActivityLog] = useState([]);
 
   useEffect(() => {
     const loadTasks = () => {
@@ -45,19 +45,11 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
         if (saved) setGoals(JSON.parse(saved));
       } catch (e) { console.error(e); }
     };
-    const loadActivityLog = () => {
-      try {
-        const saved = localStorage.getItem('activityLog');
-        if (saved) setActivityLog(JSON.parse(saved));
-      } catch (e) { console.error(e); }
-    };
     loadTasks();
     loadGoals();
-    loadActivityLog();
     const interval = setInterval(() => {
       loadTasks();
       loadGoals();
-      loadActivityLog();
     }, 2000);
     return () => clearInterval(interval);
   }, []);
@@ -80,7 +72,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
     });
   }, [tasks]);
 
-  // ---------- সাপ্তাহিক অসম্পূর্ণ টাস্ক (গত ৭ দিন) ----------
+  // ---------- সাপ্তাহিক অসম্পূর্ণ টাস্ক ----------
   const weeklyIncomplete = useMemo(() => {
     const today = new Date();
     const last7Days = [];
@@ -111,14 +103,13 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
       });
     });
 
-    // ইউনিক
     const unique = result.filter((item, index, self) => 
       index === self.findIndex(t => t.id === item.id && t.scheduledDate === item.scheduledDate)
     );
     return unique.sort((a, b) => b.scheduledDate.localeCompare(a.scheduledDate)).slice(0, 5);
   }, [tasks, language]);
 
-  // ---------- ট্রেন্ড বার (গত ৭ দিনের সম্পন্ন টাস্ক) ----------
+  // ---------- ট্রেন্ড বার ----------
   const last7DaysCompleted = useMemo(() => {
     const days = [];
     for (let i = 6; i >= 0; i--) {
@@ -163,6 +154,24 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
     });
     return maxDate ? { date: maxDate, count: maxCount } : null;
   }, [tasks]);
+
+  // ---------- গতকালের সম্পন্ন টাস্ক ----------
+  const yesterdayCompleted = useMemo(() => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    return tasks.filter(t => t.completed && t.completedDate === yesterdayStr).length;
+  }, [tasks]);
+
+  // ---------- গতকালের পারফরম্যান্স মেসেজ ----------
+  const yesterdayPerformanceMessage = useMemo(() => {
+    const count = yesterdayCompleted;
+    if (count === 0) return language === 'bn' ? 'আপনি গতকাল কোনো টাস্ক সম্পন্ন করেননি' : 'You completed no tasks yesterday';
+    if (count >= 5) return language === 'bn' ? `অসাধারণ! আপনি গতকাল ${count}টি টাস্ক সম্পন্ন করেছেন 🚀` : `Excellent! You completed ${count} tasks yesterday 🚀`;
+    if (count >= 3) return language === 'bn' ? `ভালো! আপনি গতকাল ${count}টি টাস্ক সম্পন্ন করেছেন 👍` : `Good job! You completed ${count} tasks yesterday 👍`;
+    if (count >= 1) return language === 'bn' ? `আপনি গতকাল ${count}টি টাস্ক সম্পন্ন করেছেন। আরও মনোযোগ দিন!` : `You completed ${count} tasks yesterday. Keep improving!`;
+    return '';
+  }, [yesterdayCompleted, language]);
 
   // ---------- গোল অগ্রগতি ----------
   const upcomingGoal = useMemo(() => {
@@ -219,7 +228,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
 
   return (
     <div className="space-y-8 animate-fadeIn">
-      {/* Hero */}
+      {/* Hero Section */}
       <motion.section
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -227,24 +236,24 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
         className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-600 p-1 shadow-2xl"
       >
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
-        <div className="relative bg-gradient-to-br from-indigo-600/90 via-purple-600/90 to-pink-600/90 backdrop-blur-sm rounded-3xl p-8">
+        <div className="relative bg-gradient-to-br from-indigo-600/90 via-purple-600/90 to-pink-600/90 backdrop-blur-sm rounded-3xl p-6 md:p-8">
           <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
             <div className="flex items-start gap-5">
-              <div className="p-4 bg-white/20 backdrop-blur-md rounded-2xl shadow-lg">
-                <Sparkles className="text-white" size={32} />
+              <div className="p-3 md:p-4 bg-white/20 backdrop-blur-md rounded-2xl shadow-lg">
+                <Sparkles className="text-white" size={28} />
               </div>
               <div>
-                <h1 className="text-3xl lg:text-4xl font-bold text-white mb-2">
+                <h1 className="text-2xl md:text-4xl font-bold text-white mb-2">
                   {getGreeting()}, {userName}! 👋
                 </h1>
-                <p className="text-indigo-100 text-lg max-w-2xl">
+                <p className="text-indigo-100 text-sm md:text-lg max-w-2xl">
                   {t.welcomeMessage}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-5 py-3 rounded-xl border border-white/20">
-              <Calendar size={20} className="text-white" />
-              <span className="font-medium text-white">{todayDate}</span>
+            <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 md:px-5 md:py-3 rounded-xl border border-white/20">
+              <Calendar size={18} className="text-white" />
+              <span className="font-medium text-white text-sm md:text-base">{todayDate}</span>
             </div>
           </div>
         </div>
@@ -256,7 +265,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
           <StatCard
             title={t.totalTasks}
             value={stats.totalTasks}
-            icon={<ListTodo size={24} />}
+            icon={<ListTodo size={22} />}
             gradient="from-blue-500 to-blue-600"
             lightBg="bg-blue-50 dark:bg-blue-900/20"
             iconBg="bg-blue-100 dark:bg-blue-900/30"
@@ -266,7 +275,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
           <StatCard
             title={t.completedTasks}
             value={stats.completedTasks}
-            icon={<CheckCircle size={24} />}
+            icon={<CheckCircle size={22} />}
             gradient="from-green-500 to-green-600"
             lightBg="bg-green-50 dark:bg-green-900/20"
             iconBg="bg-green-100 dark:bg-green-900/30"
@@ -278,7 +287,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
           <StatCard
             title={t.productivity}
             value={`${stats.productivity}%`}
-            icon={<TrendingUp size={24} />}
+            icon={<TrendingUp size={22} />}
             gradient="from-purple-500 to-purple-600"
             lightBg="bg-purple-50 dark:bg-purple-900/20"
             iconBg="bg-purple-100 dark:bg-purple-900/30"
@@ -288,7 +297,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
           <StatCard
             title={t.focusTime}
             value={`${stats.focusTime}h`}
-            icon={<Target size={24} />}
+            icon={<Target size={22} />}
             gradient="from-amber-500 to-amber-600"
             lightBg="bg-amber-50 dark:bg-amber-900/20"
             iconBg="bg-amber-100 dark:bg-amber-900/30"
@@ -296,17 +305,17 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
             delay={0.3}
           />
         </div>
-        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-200 dark:border-gray-700">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-            <TrendingUp size={16} className="text-indigo-500" /> Last 7 Days Completed
+            <TrendingUp size={16} className="text-indigo-500" /> {language === 'bn' ? 'গত ৭ দিনের সম্পন্ন টাস্ক' : 'Last 7 Days Completed'}
           </h3>
           <div className="flex items-end justify-between h-24 gap-1">
             {last7DaysCompleted.map((day, idx) => (
               <div key={idx} className="flex flex-col items-center flex-1">
                 <div className="w-full bg-indigo-100 dark:bg-indigo-900/30 rounded-t-lg relative" style={{ height: `${Math.max(4, day.count * 8)}px` }}>
-                  <div className="absolute bottom-0 w-full bg-indigo-500 rounded-t-lg" style={{ height: `${Math.max(4, day.count * 8)}px` }} />
+                  <div className="absolute bottom-0 w-full bg-indigo-500 dark:bg-indigo-600 rounded-t-lg" style={{ height: `${Math.max(4, day.count * 8)}px` }} />
                 </div>
-                <span className="text-xs mt-1 text-gray-600 dark:text-gray-400">{day.label}</span>
+                <span className="text-xs mt-2 text-gray-600 dark:text-gray-400">{day.label}</span>
               </div>
             ))}
           </div>
@@ -314,21 +323,21 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
       </div>
 
       {/* গ্রিডে অসম্পূর্ণ টাস্ক – গতকাল + সাপ্তাহিক */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* গতকালের কার্ড */}
         {yesterdayIncomplete.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-red-200 dark:border-red-800 overflow-hidden hover:shadow-2xl transition-shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-red-200 dark:border-red-800 overflow-hidden hover:shadow-2xl transition-all">
             <div className="p-5 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-b border-red-200 dark:border-red-800">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-red-500 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-red-500 rounded-xl">
                   <AlertCircle className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 dark:text-white">⏪ Yesterday's Pending</h3>
+                  <h3 className="font-bold text-gray-900 dark:text-white">{language === 'bn' ? '⏪ গতকালের বাকি কাজ' : '⏪ Yesterday\'s Pending'}</h3>
                   <p className="text-sm text-gray-600 dark:text-gray-400">{formattedYesterday}</p>
                 </div>
                 <span className="ml-auto px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm font-medium rounded-full">
-                  {yesterdayIncomplete.length} tasks
+                  {yesterdayIncomplete.length} {language === 'bn' ? 'টি' : 'tasks'}
                 </span>
               </div>
             </div>
@@ -337,42 +346,42 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
                 <div key={task.id} className="flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition group">
                   <div className="w-1 h-8 bg-red-400 rounded-full group-hover:scale-y-110 transition-transform"></div>
                   <div className="flex-1">
-                    <h4 className="font-bold text-gray-900 dark:text-white">{task.title}</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">{task.title}</h4>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                       {task.start} – {task.end}
                     </p>
                   </div>
                   <button
                     onClick={() => onNavigate('/today')}
-                    className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs rounded-full hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center gap-1"
+                    className="px-3 py-1.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs rounded-full hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors flex items-center gap-1 font-medium"
                   >
-                    <CheckCircle size={12} /> Complete
+                    <CheckCircle size={12} /> {language === 'bn' ? 'সম্পন্ন কর' : 'Complete'}
                   </button>
                 </div>
               ))}
               {yesterdayIncomplete.length > 3 && (
-                <div className="p-3 text-center text-sm text-gray-500 dark:text-gray-400">
-                  + {yesterdayIncomplete.length - 3} more tasks
+                <div className="p-3 text-center text-sm text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700">
+                  + {yesterdayIncomplete.length - 3} {language === 'bn' ? 'টি কাজ' : 'more tasks'}
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* সাপ্তাহিক কার্ড – উন্নত */}
+        {/* সাপ্তাহিক কার্ড */}
         {weeklyIncomplete.length > 0 && (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-amber-200 dark:border-amber-800 overflow-hidden hover:shadow-2xl transition-shadow">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-amber-200 dark:border-amber-800 overflow-hidden hover:shadow-2xl transition-all">
             <div className="p-5 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border-b border-amber-200 dark:border-amber-800">
-              <div className="flex items-center gap-2">
-                <div className="p-2 bg-amber-500 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500 rounded-xl">
                   <CalendarClock className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 dark:text-white">📅 Weekly Pending</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Last 7 days</p>
+                  <h3 className="font-bold text-gray-900 dark:text-white">{language === 'bn' ? '📅 সাপ্তাহিক বাকি কাজ' : '📅 Weekly Pending'}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{language === 'bn' ? 'গত ৭ দিন' : 'Last 7 days'}</p>
                 </div>
                 <span className="ml-auto px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-sm font-medium rounded-full">
-                  {weeklyIncomplete.length} tasks
+                  {weeklyIncomplete.length} {language === 'bn' ? 'টি' : 'tasks'}
                 </span>
               </div>
             </div>
@@ -381,76 +390,106 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
                 <div key={`${task.id}-${task.scheduledDate}`} className="flex items-center gap-3 p-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition group">
                   <div className="w-1 h-8 bg-amber-400 rounded-full group-hover:scale-y-110 transition-transform"></div>
                   <div className="flex-1">
-                    <h4 className="font-bold text-gray-900 dark:text-white">{task.title}</h4>
+                    <h4 className="font-semibold text-gray-900 dark:text-white">{task.title}</h4>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-2">
                       <span>{task.start} – {task.end}</span>
                       <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
-                      <span className="text-amber-600 dark:text-amber-400">{task.displayDate}</span>
+                      <span className="text-amber-600 dark:text-amber-400 font-medium">{task.displayDate}</span>
                     </p>
                   </div>
                   <button
                     onClick={() => onNavigate('/today')}
-                    className="px-3 py-1 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs rounded-full hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center gap-1"
+                    className="px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 text-xs rounded-full hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors flex items-center gap-1 font-medium"
                   >
-                    <CheckCircle size={12} /> Complete
+                    <CheckCircle size={12} /> {language === 'bn' ? 'সম্পন্ন কর' : 'Complete'}
                   </button>
                 </div>
               ))}
               {weeklyIncomplete.length > 3 && (
-                <div className="p-3 text-center text-sm text-gray-500 dark:text-gray-400">
-                  + {weeklyIncomplete.length - 3} more tasks
+                <div className="p-3 text-center text-sm text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700">
+                  + {weeklyIncomplete.length - 3} {language === 'bn' ? 'টি কাজ' : 'more tasks'}
                 </div>
               )}
             </div>
-            <div className="p-3 border-t border-amber-100 dark:border-amber-800/50 text-center">
+            <div className="p-3 border-t border-amber-100 dark:border-amber-800/50 text-center bg-amber-50/50 dark:bg-amber-900/10">
               <button
                 onClick={() => onNavigate('/history')}
-                className="text-sm text-amber-600 dark:text-amber-400 hover:underline flex items-center justify-center gap-1"
+                className="text-sm text-amber-600 dark:text-amber-400 hover:underline flex items-center justify-center gap-1 font-medium"
               >
-                <Eye size={14} /> View all in History
+                <Eye size={14} /> {language === 'bn' ? 'ইতিহাসে দেখুন' : 'View all in History'}
               </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* অ্যাডভান্সড ফিচার সারি */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* অ্যাডভান্সড ফিচার সারি (৪টি কার্ড) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* স্ট্রিক কার্ড */}
-        <div className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-xl p-5 text-white shadow-lg">
-          <div className="flex items-center gap-3 mb-2">
-            <Flame size={24} />
-            <h4 className="font-bold">Current Streak</h4>
+        <motion.div
+          whileHover={{ y: -3 }}
+          className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-white/20 rounded-lg">
+              <Flame size={22} />
+            </div>
+            <h4 className="font-semibold">{language === 'bn' ? 'বর্তমান ধারা' : 'Current Streak'}</h4>
           </div>
-          <p className="text-3xl font-bold">{streak} days</p>
-          <p className="text-sm opacity-80 mt-1">Keep it up! 🔥</p>
-        </div>
+          <p className="text-3xl font-bold">{streak} <span className="text-sm font-normal opacity-80">{language === 'bn' ? 'দিন' : 'days'}</span></p>
+          <p className="text-xs opacity-80 mt-2">{language === 'bn' ? 'চালিয়ে যান! 🔥' : 'Keep it up! 🔥'}</p>
+        </motion.div>
 
         {/* সেরা দিন কার্ড */}
         {bestDay && (
-          <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-5 text-white shadow-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <Star size={24} />
-              <h4 className="font-bold">Best Day</h4>
+          <motion.div
+            whileHover={{ y: -3 }}
+            className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Star size={22} />
+              </div>
+              <h4 className="font-semibold">{language === 'bn' ? 'সেরা দিন' : 'Best Day'}</h4>
             </div>
             <p className="text-2xl font-bold">{new Date(bestDay.date).toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { month: 'short', day: 'numeric' })}</p>
-            <p className="text-sm opacity-80 mt-1">{bestDay.count} tasks completed</p>
-          </div>
+            <p className="text-xs opacity-80 mt-2">{bestDay.count} {language === 'bn' ? 'টি টাস্ক সম্পন্ন' : 'tasks completed'}</p>
+          </motion.div>
         )}
 
         {/* গোল কাউন্টডাউন */}
         {upcomingGoal && (
-          <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl p-5 text-white shadow-lg">
-            <div className="flex items-center gap-3 mb-2">
-              <Target size={24} />
-              <h4 className="font-bold">Next Goal</h4>
+          <motion.div
+            whileHover={{ y: -3 }}
+            className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all"
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-white/20 rounded-lg">
+                <Target size={22} />
+              </div>
+              <h4 className="font-semibold">{language === 'bn' ? 'পরবর্তী লক্ষ্য' : 'Next Goal'}</h4>
             </div>
-            <p className="text-lg font-bold truncate">{upcomingGoal.title}</p>
-            <p className="text-sm opacity-80 mt-1">
-              {Math.ceil(upcomingGoal.diff / (1000 * 60 * 60 * 24))} days left
+            <p className="text-lg font-semibold truncate">{upcomingGoal.title}</p>
+            <p className="text-xs opacity-80 mt-2">
+              {Math.ceil(upcomingGoal.diff / (1000 * 60 * 60 * 24))} {language === 'bn' ? 'দিন বাকি' : 'days left'}
             </p>
-          </div>
+          </motion.div>
         )}
+
+        {/* গতকালের পারফরম্যান্স কার্ড */}
+        <motion.div
+          whileHover={{ y: -3 }}
+          className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="p-2 bg-white/20 rounded-lg">
+              <Sun size={22} />
+            </div>
+            <h4 className="font-semibold">{language === 'bn' ? 'গতকালের পারফরম্যান্স' : 'Yesterday\'s Performance'}</h4>
+          </div>
+          <p className="text-3xl font-bold">{yesterdayCompleted} <span className="text-sm font-normal opacity-80">{language === 'bn' ? 'টি' : 'tasks'}</span></p>
+          <p className="text-xs opacity-80 mt-2">{yesterdayPerformanceMessage}</p>
+        </motion.div>
       </div>
 
       {/* Quick Access */}
@@ -502,9 +541,9 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 + index * 0.1 }}
-              className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow"
+              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-xl transition-all"
             >
-              <div className={`inline-flex p-3 rounded-lg bg-gradient-to-br ${feature.color} bg-opacity-20 text-white mb-4`}>
+              <div className={`inline-flex p-3 rounded-xl bg-gradient-to-br ${feature.color} bg-opacity-20 text-white mb-4`}>
                 <div className="text-white">{feature.icon}</div>
               </div>
               <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
@@ -546,15 +585,15 @@ const StatCard = ({ title, value, icon, gradient, lightBg, iconBg, iconColor, de
     animate={{ opacity: 1, y: 0 }}
     transition={{ delay, duration: 0.4 }}
     whileHover={{ y: -3, scale: 1.02 }}
-    className={`relative overflow-hidden rounded-xl ${lightBg} border border-gray-200 dark:border-gray-700 p-5 shadow-sm hover:shadow-md transition-all group`}
+    className={`relative overflow-hidden rounded-2xl ${lightBg} border border-gray-200 dark:border-gray-700 p-5 shadow-lg hover:shadow-xl transition-all group`}
   >
     <div className={`absolute top-0 right-0 w-20 h-20 bg-gradient-to-br ${gradient} opacity-5 rounded-full -mr-6 -mt-6 group-hover:scale-150 transition-transform duration-700`} />
     <div className="flex items-center gap-4">
-      <div className={`p-3 rounded-lg ${iconBg} group-hover:scale-110 transition-transform`}>
+      <div className={`p-3 rounded-xl ${iconBg} group-hover:scale-110 transition-transform`}>
         <div className={iconColor}>{icon}</div>
       </div>
       <div>
-        <p className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider">{title}</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400 uppercase tracking-wider font-medium">{title}</p>
         <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
       </div>
     </div>
