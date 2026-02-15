@@ -3,7 +3,7 @@ import {
   Calendar, CheckCircle, Clock, Filter, BarChart3, TrendingUp, Award, Target,
   ChevronDown, ChevronUp, AlertCircle, Zap, XCircle, Download,
   Briefcase, Heart, BookOpen, Dumbbell, Home, Palette, Users, DollarSign,
-  ThumbsUp, ThumbsDown, Star, Loader2, FileText
+  ThumbsUp, ThumbsDown, Star, Loader2, FileText, Trash2
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
@@ -51,6 +51,10 @@ const translations = {
     worstWeekday: 'সবচেয়ে কম সক্রিয় দিন',
     avgTasksPerDay: 'প্রতিদিন গড় টাস্ক',
     loading: 'লোড হচ্ছে...',
+    deleteAll: 'সব মুছুন',
+    deleteTask: 'টাস্ক মুছুন',
+    confirmDeleteAll: 'আপনি কি সব টাস্ক মুছে ফেলতে চান? এই কাজ অপরিবর্তনীয়।',
+    confirmDeleteTask: 'আপনি কি এই টাস্কটি মুছে ফেলতে চান?',
   },
   en: {
     title: 'Task History',
@@ -94,10 +98,14 @@ const translations = {
     worstWeekday: 'Least Active Day',
     avgTasksPerDay: 'Avg Tasks/Day',
     loading: 'Loading...',
+    deleteAll: 'Delete All',
+    deleteTask: 'Delete Task',
+    confirmDeleteAll: 'Are you sure you want to delete all tasks? This action cannot be undone.',
+    confirmDeleteTask: 'Are you sure you want to delete this task?',
   }
 };
 
-const History = ({ language = 'bn' }) => {
+const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
   const t = translations[language];
 
   // ক্যাটাগরি ও অগ্রাধিকার (মেমো)
@@ -374,6 +382,34 @@ const History = ({ language = 'bn' }) => {
     }
   };
 
+  // ডিলিট হ্যান্ডলার
+  const handleDeleteAll = () => {
+    if (window.confirm(t.confirmDeleteAll)) {
+      if (onDeleteAll) {
+        onDeleteAll();
+      } else {
+        // Fallback: সরাসরি লোকাল স্টোরেজ মুছুন (কম্পোনেন্ট নিজেই)
+        localStorage.removeItem('advancedTimeBlocks');
+        setTimeBlocks([]);
+        toast.success(t.deleteAll);
+      }
+    }
+  };
+
+  const handleDeleteTask = (taskId) => {
+    if (window.confirm(t.confirmDeleteTask)) {
+      if (onDeleteTask) {
+        onDeleteTask(taskId);
+      } else {
+        // Fallback: লোকাল স্টোরেজ আপডেট
+        const updated = timeBlocks.filter(t => t.id !== taskId);
+        setTimeBlocks(updated);
+        localStorage.setItem('advancedTimeBlocks', JSON.stringify(updated));
+        toast.success(t.deleteTask);
+      }
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -393,7 +429,13 @@ const History = ({ language = 'bn' }) => {
           </h2>
           <p className="text-gray-600 dark:text-gray-400 mt-1">{t.subtitle}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={handleDeleteAll}
+            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center gap-2 shadow-md"
+          >
+            <Trash2 size={16} /> {t.deleteAll}
+          </button>
           <button
             onClick={() => exportHistory('json')}
             className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium flex items-center gap-2 shadow-md"
@@ -755,6 +797,17 @@ const History = ({ language = 'bn' }) => {
                                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{task.description}</p>
                                   )}
                                 </div>
+                                {/* ডিলিট বাটন */}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTask(task.id);
+                                  }}
+                                  className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                  title={t.deleteTask}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
                               </div>
                             </div>
                           );
