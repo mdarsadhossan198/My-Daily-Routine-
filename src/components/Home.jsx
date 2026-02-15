@@ -54,7 +54,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
     return () => clearInterval(interval);
   }, []);
 
-  // ---------- গতকালের অসম্পূর্ণ টাস্ক ----------
+  // ---------- গতকালের অসম্পূর্ণ টাস্ক (date ফিল্ড সহ) ----------
   const yesterdayIncomplete = useMemo(() => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -62,6 +62,12 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
     const dayOfWeek = yesterday.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
 
     return tasks.filter(task => {
+      // 1. নির্দিষ্ট তারিখের টাস্ক (date ফিল্ড)
+      if (task.date === yesterdayStr) {
+        return !task.completed;
+      }
+      
+      // 2. রিপিটিং টাস্ক (repeats বা scheduledDay)
       const isScheduledYesterday = 
         (task.repeats && task.repeats.includes(dayOfWeek)) || 
         (task.scheduledDay === dayOfWeek);
@@ -72,7 +78,7 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
     });
   }, [tasks]);
 
-  // ---------- সাপ্তাহিক অসম্পূর্ণ টাস্ক ----------
+  // ---------- সাপ্তাহিক অসম্পূর্ণ টাস্ক (গত ৭ দিন, date ফিল্ড সহ) ----------
   const weeklyIncomplete = useMemo(() => {
     const today = new Date();
     const last7Days = [];
@@ -89,9 +95,15 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
     const result = [];
     tasks.forEach(task => {
       last7Days.forEach(day => {
-        const isScheduled = 
+        // 1. নির্দিষ্ট তারিখের টাস্ক চেক
+        const isDateMatch = task.date === day.dateStr;
+        
+        // 2. রিপিটিং টাস্ক চেক
+        const isRecurringMatch = 
           (task.repeats && task.repeats.includes(day.dayOfWeek)) || 
           (task.scheduledDay === day.dayOfWeek);
+        
+        const isScheduled = isDateMatch || isRecurringMatch;
         
         if (isScheduled && (!task.completed || task.completedDate !== day.dateStr)) {
           result.push({
@@ -103,13 +115,14 @@ const Home = ({ language, stats, userName = "User", onNavigate }) => {
       });
     });
 
+    // ইউনিক টাস্ক (একই টাস্ক একাধিক দিনে দেখাতে পারে, কিন্তু সেটাই কাঙ্ক্ষিত)
     const unique = result.filter((item, index, self) => 
       index === self.findIndex(t => t.id === item.id && t.scheduledDate === item.scheduledDate)
     );
     return unique.sort((a, b) => b.scheduledDate.localeCompare(a.scheduledDate)).slice(0, 5);
   }, [tasks, language]);
 
-  // ---------- ট্রেন্ড বার ----------
+  // ---------- ট্রেন্ড বার (গত ৭ দিনের সম্পন্ন টাস্ক) ----------
   const last7DaysCompleted = useMemo(() => {
     const days = [];
     for (let i = 6; i >= 0; i--) {

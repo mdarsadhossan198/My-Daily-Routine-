@@ -6,7 +6,7 @@ import {
   Download, Upload, Play, StopCircle, Timer,
   BookOpen, Briefcase, Heart, Dumbbell, Utensils, Users, Home,
   Palette, Grid, List, Calendar as CalendarIcon, AlertCircle,
-  Zap, DollarSign
+  Zap, DollarSign, Repeat, Infinity, Save
 } from 'lucide-react';
 
 const TimeBlockManager = () => {
@@ -15,169 +15,6 @@ const TimeBlockManager = () => {
     const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     return days[new Date().getDay()];
   };
-
-  // ==================== STATE ====================
-  const [timeBlocks, setTimeBlocks] = useState(() => {
-    try {
-      const saved = localStorage.getItem('advancedTimeBlocks');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.map(block => ({
-          ...block,
-          createdAt: new Date(block.createdAt),
-          lastModified: new Date(block.lastModified),
-          repeats: block.repeats || [],
-          notifications: block.notifications || [],
-          dependencies: block.dependencies || [],
-          progress: block.progress || 0,
-          completed: block.completed || false,
-          scheduledDay: block.scheduledDay || null,
-          completedDate: block.completedDate || null
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading time blocks:', error);
-    }
-
-    // Default blocks
-    return [
-      {
-        id: 1,
-        title: 'Morning Routine',
-        start: '07:00',
-        end: '08:00',
-        color: 'bg-blue-500',
-        description: 'Meditation, Exercise, Breakfast',
-        category: 'health',
-        priority: 'medium',
-        tags: ['routine', 'health', 'morning'],
-        completed: false,
-        progress: 0,
-        createdAt: new Date(),
-        lastModified: new Date(),
-        repeats: ['mon', 'tue', 'wed', 'thu', 'fri'],
-        notifications: [],
-        dependencies: [],
-        scheduledDay: null,
-        completedDate: null
-      },
-      {
-        id: 2,
-        title: 'Deep Work Session',
-        start: '09:00',
-        end: '12:00',
-        color: 'bg-green-500',
-        description: 'Focus on important projects',
-        category: 'work',
-        priority: 'high',
-        tags: ['work', 'focus', 'productivity'],
-        completed: false,
-        progress: 0,
-        createdAt: new Date(),
-        lastModified: new Date(),
-        repeats: ['mon', 'tue', 'wed', 'thu', 'fri'],
-        notifications: ['15 minutes before'],
-        dependencies: [],
-        scheduledDay: null,
-        completedDate: null
-      },
-      {
-        id: 3,
-        title: 'Lunch Break',
-        start: '12:00',
-        end: '13:00',
-        color: 'bg-yellow-500',
-        description: 'Healthy lunch and short walk',
-        category: 'personal',
-        priority: 'low',
-        tags: ['break', 'food', 'health'],
-        completed: false,
-        progress: 0,
-        createdAt: new Date(),
-        lastModified: new Date(),
-        repeats: ['mon', 'tue', 'wed', 'thu', 'fri'],
-        notifications: [],
-        dependencies: [],
-        scheduledDay: null,
-        completedDate: null
-      },
-      {
-        id: 4,
-        title: 'Team Meetings',
-        start: '14:00',
-        end: '15:00',
-        color: 'bg-purple-500',
-        description: 'Daily standup and project discussions',
-        category: 'work',
-        priority: 'medium',
-        tags: ['meeting', 'team', 'communication'],
-        completed: false,
-        progress: 0,
-        createdAt: new Date(),
-        lastModified: new Date(),
-        repeats: ['mon', 'wed', 'fri'],
-        notifications: ['30 minutes before'],
-        dependencies: [],
-        scheduledDay: null,
-        completedDate: null
-      },
-      {
-        id: 5,
-        title: 'Learning Session',
-        start: '16:00',
-        end: '17:00',
-        color: 'bg-pink-500',
-        description: 'Study new technologies',
-        category: 'learning',
-        priority: 'high',
-        tags: ['learning', 'growth', 'skills'],
-        completed: false,
-        progress: 0,
-        createdAt: new Date(),
-        lastModified: new Date(),
-        repeats: ['tue', 'thu'],
-        notifications: ['10 minutes before'],
-        dependencies: [],
-        scheduledDay: null,
-        completedDate: null
-      }
-    ];
-  });
-
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [formData, setFormData] = useState({
-    title: '',
-    start: '09:00',
-    end: '10:00',
-    color: 'bg-blue-500',
-    description: '',
-    category: 'work',
-    priority: 'medium',
-    tags: [],
-    repeats: [],
-    notifications: [],
-    scheduledDay: null
-  });
-  const [tagInput, setTagInput] = useState('');
-  const [activeView, setActiveView] = useState('grid');
-  const [filterStatus, setFilterStatus] = useState('all');
-  const [selectedBlocks, setSelectedBlocks] = useState([]);
-  const [history, setHistory] = useState([]);
-  const [historyIndex, setHistoryIndex] = useState(-1);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
-  const [activeDay, setActiveDay] = useState(getCurrentDayAbbr());
-  const [timer, setTimer] = useState(null);
-  const [activeTimer, setActiveTimer] = useState(null);
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [stats, setStats] = useState({
-    total: 0,
-    completed: 0,
-    upcoming: 0,
-    totalHours: 0,
-    byCategory: {},
-    byPriority: {}
-  });
 
   // ==================== CONSTANTS ====================
   const colors = [
@@ -230,11 +67,106 @@ const TimeBlockManager = () => {
     'At start time'
   ];
 
+  const repeatTypes = [
+    { id: 'none', label: 'No Repeat', icon: Clock },
+    { id: 'daily', label: 'Daily', icon: Repeat },
+    { id: 'weekly', label: 'Weekly', icon: Repeat },
+    { id: 'monthly', label: 'Monthly', icon: Repeat },
+    { id: 'custom', label: 'Custom (Days)', icon: Calendar }
+  ];
+
+  // ==================== STATE ====================
+  const [timeBlocks, setTimeBlocks] = useState(() => {
+    try {
+      const saved = localStorage.getItem('advancedTimeBlocks');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return parsed.map(block => ({
+          ...block,
+          createdAt: block.createdAt ? new Date(block.createdAt) : new Date(),
+          lastModified: block.lastModified ? new Date(block.lastModified) : new Date(),
+          repeats: block.repeats || [],
+          notifications: block.notifications || [],
+          dependencies: block.dependencies || [],
+          progress: block.progress || 0,
+          completed: block.completed || false,
+          scheduledDay: block.scheduledDay || null,
+          completedDate: block.completedDate || null,
+          date: block.date || null,
+          repeatType: block.repeatType || 'none',
+          repeatEndDate: block.repeatEndDate || null,
+          isTemplate: block.isTemplate || false,
+          templateId: block.templateId || null
+        }));
+      }
+    } catch (error) {
+      console.error('Error loading time blocks:', error);
+    }
+    return [];
+  });
+
+  const [templates, setTemplates] = useState(() => {
+    try {
+      const saved = localStorage.getItem('timeBlockTemplates');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (error) {
+      console.error('Error loading templates:', error);
+    }
+    return [];
+  });
+
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [formData, setFormData] = useState({
+    title: '',
+    start: '09:00',
+    end: '10:00',
+    color: 'bg-blue-500',
+    description: '',
+    category: 'work',
+    priority: 'medium',
+    tags: [],
+    repeats: [],
+    notifications: [],
+    scheduledDay: null,
+    date: new Date().toISOString().split('T')[0],
+    repeatType: 'none',
+    repeatEndDate: '',
+    isTemplate: false
+  });
+  const [tagInput, setTagInput] = useState('');
+  const [activeView, setActiveView] = useState('grid');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [selectedBlocks, setSelectedBlocks] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [activeDay, setActiveDay] = useState(getCurrentDayAbbr());
+  const [timer, setTimer] = useState(null);
+  const [activeTimer, setActiveTimer] = useState(null);
+  const [timerSeconds, setTimerSeconds] = useState(0);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [stats, setStats] = useState({
+    total: 0,
+    completed: 0,
+    upcoming: 0,
+    totalHours: 0,
+    byCategory: {},
+    byPriority: {}
+  });
+
   // ==================== EFFECTS ====================
   useEffect(() => {
     localStorage.setItem('advancedTimeBlocks', JSON.stringify(timeBlocks));
     computeStats();
+    generateRecurringBlocks();
   }, [timeBlocks]);
+
+  useEffect(() => {
+    localStorage.setItem('timeBlockTemplates', JSON.stringify(templates));
+  }, [templates]);
 
   useEffect(() => {
     let interval;
@@ -254,6 +186,42 @@ const TimeBlockManager = () => {
     }
     return () => clearInterval(interval);
   }, [timer, activeTimer]);
+
+  // ==================== RECURRING BLOCK GENERATOR ====================
+  const generateRecurringBlocks = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const recurringTemplates = timeBlocks.filter(block => 
+      block.repeatType !== 'none' && !block.isTemplate
+    );
+
+    recurringTemplates.forEach(template => {
+      // Check if we already have a block for tomorrow
+      const hasTomorrowBlock = timeBlocks.some(block => 
+        block.templateId === template.id && 
+        block.date === tomorrow.toISOString().split('T')[0]
+      );
+
+      if (!hasTomorrowBlock && template.repeatType !== 'none') {
+        // Create new block for tomorrow
+        const newBlock = {
+          ...template,
+          id: Date.now() + Math.random(),
+          date: tomorrow.toISOString().split('T')[0],
+          completed: false,
+          progress: 0,
+          completedDate: null,
+          createdAt: new Date(),
+          lastModified: new Date(),
+          templateId: template.id
+        };
+        setTimeBlocks(prev => [...prev, newBlock]);
+      }
+    });
+  };
 
   // ==================== STATS ====================
   const computeStats = () => {
@@ -343,24 +311,74 @@ const TimeBlockManager = () => {
     }
 
     const prevBlocks = [...timeBlocks];
+    const newBlockId = Date.now();
     const newBlock = {
-      id: Date.now(),
+      id: newBlockId,
       ...formData,
       completed: false,
       progress: 0,
       createdAt: new Date(),
       lastModified: new Date(),
       dependencies: [],
-      scheduledDay: formData.repeats.length === 0 ? (activeDay || getCurrentDayAbbr()) : null,
-      completedDate: null
+      scheduledDay: formData.repeats.length === 0 ? null : (activeDay || getCurrentDayAbbr()),
+      completedDate: null,
+      date: formData.repeats.length === 0 ? formData.date : null,
+      repeatType: formData.repeatType,
+      repeatEndDate: formData.repeatEndDate,
+      isTemplate: formData.isTemplate,
+      templateId: null
     };
 
-    const newBlocks = [...timeBlocks, newBlock];
+    let newBlocks = [...timeBlocks, newBlock];
+
+    // If this is a template, add to templates list
+    if (formData.isTemplate) {
+      const template = { ...newBlock, isTemplate: true, id: newBlockId };
+      setTemplates(prev => [...prev, template]);
+    }
+
     setTimeBlocks(newBlocks);
     saveToHistory('add', prevBlocks, newBlocks);
     toast.success('Time block added successfully!');
     resetForm();
     setShowForm(false);
+  };
+
+  const saveAsTemplate = () => {
+    if (!formData.title.trim()) {
+      toast.error('Please enter a title');
+      return;
+    }
+
+    const template = {
+      ...formData,
+      id: Date.now(),
+      isTemplate: true,
+      repeatType: 'none',
+      repeatEndDate: null,
+      date: null
+    };
+
+    setTemplates(prev => [...prev, template]);
+    toast.success('Template saved successfully!');
+    resetForm();
+    setShowForm(false);
+  };
+
+  const loadTemplate = (template) => {
+    setFormData({
+      ...template,
+      date: new Date().toISOString().split('T')[0],
+      repeatType: 'none',
+      repeatEndDate: '',
+      isTemplate: false
+    });
+    setShowForm(true);
+  };
+
+  const deleteTemplate = (templateId) => {
+    setTemplates(prev => prev.filter(t => t.id !== templateId));
+    toast.success('Template deleted');
   };
 
   const updateTimeBlock = (e) => {
@@ -375,7 +393,11 @@ const TimeBlockManager = () => {
       block.id === editingId ? {
         ...block,
         ...formData,
-        scheduledDay: formData.repeats.length === 0 ? (block.scheduledDay || activeDay || getCurrentDayAbbr()) : null,
+        scheduledDay: formData.repeats.length === 0 ? null : (block.scheduledDay || activeDay || getCurrentDayAbbr()),
+        date: formData.repeats.length === 0 ? formData.date : null,
+        repeatType: formData.repeatType,
+        repeatEndDate: formData.repeatEndDate,
+        isTemplate: formData.isTemplate,
         lastModified: new Date()
       } : block
     );
@@ -420,7 +442,8 @@ const TimeBlockManager = () => {
       lastModified: new Date(),
       completed: false,
       progress: 0,
-      completedDate: null
+      completedDate: null,
+      templateId: null
     };
 
     const newBlocks = [...timeBlocks, duplicated];
@@ -487,7 +510,11 @@ const TimeBlockManager = () => {
       tags: [],
       repeats: [],
       notifications: [],
-      scheduledDay: null
+      scheduledDay: null,
+      date: new Date().toISOString().split('T')[0],
+      repeatType: 'none',
+      repeatEndDate: '',
+      isTemplate: false
     });
     setTagInput('');
   };
@@ -505,7 +532,11 @@ const TimeBlockManager = () => {
       tags: block.tags || [],
       repeats: block.repeats || [],
       notifications: block.notifications || [],
-      scheduledDay: block.scheduledDay || null
+      scheduledDay: block.scheduledDay || null,
+      date: block.date || new Date().toISOString().split('T')[0],
+      repeatType: block.repeatType || 'none',
+      repeatEndDate: block.repeatEndDate || '',
+      isTemplate: block.isTemplate || false
     });
     setShowForm(true);
   };
@@ -551,7 +582,8 @@ const TimeBlockManager = () => {
     setFormData({
       ...formData,
       repeats: newRepeats,
-      scheduledDay: newRepeats.length > 0 ? null : formData.scheduledDay
+      scheduledDay: newRepeats.length > 0 ? null : formData.scheduledDay,
+      date: newRepeats.length > 0 ? null : formData.date
     });
   };
 
@@ -568,8 +600,13 @@ const TimeBlockManager = () => {
   const filteredBlocks = timeBlocks.filter(block => {
     if (activeDay) {
       const isRecurring = block.repeats && block.repeats.includes(activeDay);
+      const isDateMatch = block.date ? (() => {
+        const blockDate = new Date(block.date);
+        const dayAbbr = days[blockDate.getDay()]?.id;
+        return dayAbbr === activeDay;
+      })() : false;
       const isOneOff = block.scheduledDay === activeDay;
-      if (!isRecurring && !isOneOff) return false;
+      if (!isRecurring && !isOneOff && !isDateMatch) return false;
     }
     if (filterStatus === 'completed' && !block.completed) return false;
     if (filterStatus === 'incomplete' && block.completed) return false;
@@ -582,6 +619,7 @@ const TimeBlockManager = () => {
       version: '2.0',
       exportDate: new Date().toISOString(),
       timeBlocks: timeBlocks,
+      templates: templates,
       stats: stats
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -611,12 +649,18 @@ const TimeBlockManager = () => {
             createdAt: block.createdAt ? new Date(block.createdAt) : new Date(),
             lastModified: block.lastModified ? new Date(block.lastModified) : new Date(),
             scheduledDay: block.scheduledDay || null,
-            completedDate: block.completedDate || null
+            completedDate: block.completedDate || null,
+            date: block.date || null,
+            repeatType: block.repeatType || 'none',
+            repeatEndDate: block.repeatEndDate || null
           }));
           const newBlocks = [...timeBlocks, ...importedBlocks];
           setTimeBlocks(newBlocks);
           saveToHistory('import', prevBlocks, newBlocks);
           toast.success(`Imported ${importedBlocks.length} time blocks`);
+        }
+        if (data.templates) {
+          setTemplates(prev => [...prev, ...data.templates]);
         }
       } catch (error) {
         toast.error('Error importing file');
@@ -648,6 +692,13 @@ const TimeBlockManager = () => {
             </button>
           )}
           <button
+            onClick={() => setShowTemplates(!showTemplates)}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium"
+          >
+            <Save size={20} />
+            Templates
+          </button>
+          <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium"
           >
@@ -668,6 +719,35 @@ const TimeBlockManager = () => {
           </label>
         </div>
       </div>
+
+      {/* Templates Panel */}
+      {showTemplates && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow">
+          <h3 className="text-lg font-semibold mb-3">📋 Your Templates</h3>
+          {templates.length === 0 ? (
+            <p className="text-gray-500">No templates yet. Create one by checking "Save as template" when adding a block.</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {templates.map(template => (
+                <div key={template.id} className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-semibold">{template.title}</h4>
+                    <button onClick={() => deleteTemplate(template.id)} className="text-red-500 hover:text-red-700">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-2">{template.start} - {template.end}</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => loadTemplate(template)} className="flex-1 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700">
+                      Use Template
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -907,12 +987,22 @@ const TimeBlockManager = () => {
                             {block.title}
                           </h3>
                         </div>
-                        <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400 mb-2">
+                        <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400 mb-2 flex-wrap">
                           <span className="flex items-center gap-1"><Clock size={14} /> {block.start} - {block.end} ({duration.hours}h {duration.minutes > 0 ? `${duration.minutes}m` : ''})</span>
                           <span className={`px-2 py-0.5 rounded ${block.color} bg-opacity-10 text-xs`}>
                             <CategoryIcon className="inline w-3 h-3 mr-1" />
                             {categories.find(c => c.id === block.category)?.label}
                           </span>
+                          {block.date && (
+                            <span className="flex items-center gap-1 text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
+                              <Calendar size={12} /> {block.date}
+                            </span>
+                          )}
+                          {block.repeatType !== 'none' && (
+                            <span className="flex items-center gap-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
+                              <Repeat size={12} /> {block.repeatType}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -994,6 +1084,61 @@ const TimeBlockManager = () => {
                     <input type="time" value={formData.end} onChange={(e) => setFormData({...formData, end: e.target.value})} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" />
                   </div>
                 </div>
+
+                {/* Repeat Type */}
+                <div>
+                  <label className="block text-sm font-medium mb-2">Repeat Type</label>
+                  <div className="flex flex-wrap gap-2">
+                    {repeatTypes.map(type => {
+                      const Icon = type.icon;
+                      return (
+                        <button
+                          type="button"
+                          key={type.id}
+                          onClick={() => setFormData({...formData, repeatType: type.id})}
+                          className={`px-3 py-2 rounded-lg flex items-center gap-1 ${
+                            formData.repeatType === type.id
+                              ? 'bg-blue-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                          }`}
+                        >
+                          <Icon size={14} />
+                          {type.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Repeat End Date (if repeating) */}
+                {formData.repeatType !== 'none' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Repeat Until (optional)</label>
+                    <input
+                      type="date"
+                      value={formData.repeatEndDate}
+                      onChange={(e) => setFormData({...formData, repeatEndDate: e.target.value})}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Leave empty for indefinite repeating</p>
+                  </div>
+                )}
+
+                {/* Date for one-time blocks */}
+                {formData.repeatType === 'none' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Date (for one‑time blocks)</label>
+                    <input
+                      type="date"
+                      value={formData.date || ''}
+                      onChange={(e) => setFormData({...formData, date: e.target.value})}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    />
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-sm font-medium mb-2">Color</label>
                   <div className="flex gap-2 flex-wrap">
@@ -1031,7 +1176,7 @@ const TimeBlockManager = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-2">Repeat On (leave empty for one‑time)</label>
+                  <label className="block text-sm font-medium mb-2">Repeat On (for weekly custom)</label>
                   <div className="flex flex-wrap gap-1">
                     {days.map(day => (
                       <button type="button" key={day.id} onClick={() => toggleRepeat(day.id)} className={`px-3 py-1.5 rounded-lg ${formData.repeats.includes(day.id) ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}>
@@ -1039,11 +1184,6 @@ const TimeBlockManager = () => {
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formData.repeats.length === 0 && activeDay && (
-                      <>This block will be scheduled for <strong>{days.find(d => d.id === activeDay)?.label}</strong> (current day)</>
-                    )}
-                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">Notifications</label>
@@ -1078,6 +1218,21 @@ const TimeBlockManager = () => {
                   <label className="block text-sm font-medium mb-2">Description (Optional)</label>
                   <textarea value={formData.description} onChange={(e) => setFormData({...formData, description: e.target.value})} placeholder="Add details about this time block..." className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" rows="3" />
                 </div>
+
+                {/* Save as template option (for new blocks) */}
+                {!editingId && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="saveAsTemplate"
+                      checked={formData.isTemplate}
+                      onChange={(e) => setFormData({...formData, isTemplate: e.target.checked})}
+                      className="w-4 h-4 text-blue-600 rounded"
+                    />
+                    <label htmlFor="saveAsTemplate" className="text-sm">Save as template for future use</label>
+                  </div>
+                )}
+
                 <div className="flex gap-3 pt-4">
                   <button type="button" onClick={() => { setShowForm(false); setEditingId(null); resetForm(); }} className="flex-1 py-3 border border-gray-300 dark:border-gray-600 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700">
                     Cancel
