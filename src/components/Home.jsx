@@ -1,34 +1,84 @@
-import React, { useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion } from "framer-motion";
 import {
-  Calendar,
-  ListTodo,
-  Clock,
-  BookOpen,
-  Library,
-  MessageSquare,
-  Heart,
-  TrendingUp,
-  CheckCircle,
-  Target,
-  Award,
-  Sparkles,
-  ChevronRight,
-  Zap,
-  BarChart,
-  Users,
-  AlertCircle,
-  CalendarClock,
-  Flame,
-  Star,
-  Eye,
-  Sun,
+  Calendar, ListTodo, Clock, BookOpen, Library, MessageSquare,
+  Heart, TrendingUp, CheckCircle, Target, Award, Sparkles,
+  ChevronRight, Zap, BarChart, Users, AlertCircle, CalendarClock,
+  Flame, Star, Eye, Sun,
 } from "lucide-react";
 
-const Home = ({ language, stats, userName = "User", onNavigate, goals = [], tasks = [] }) => {
-  const t = translations[language];
+const STORAGE_KEY = 'advancedTimeBlocks';
 
-  // ---------- গতকালের অসম্পূর্ণ টাস্ক (date ফিল্ড সহ) ----------
+const Home = ({ 
+  language = 'en', 
+  stats = {}, 
+  userName = "User", 
+  onNavigate = () => {}, 
+  goals = [], 
+  tasks: propTasks 
+}) => {
+  const t = translations[language] || translations.en;
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+
+  // ---------- local tasks ----------
+  const [localTasks, setLocalTasks] = useState([]);
+
+  // ---------- load from storage ----------
+  useEffect(() => {
+    const load = () => {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // migrate if needed
+          const migrated = parsed.map(block => {
+            if (block.completed && block.completedDate && !block.completedDates) {
+              return { ...block, completedDates: { [block.completedDate]: true } };
+            }
+            if (!block.completedDates) block.completedDates = {};
+            return block;
+          });
+          setLocalTasks(migrated);
+        } else {
+          setLocalTasks([]);
+        }
+      } catch (error) {
+        console.error('Error loading tasks:', error);
+      }
+    };
+    load();
+    const handleStorage = (e) => {
+      if (e.key === STORAGE_KEY) load();
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, []);
+
+  // Use propTasks if provided, otherwise localTasks
+  const tasks = propTasks || localTasks;
+
+  // ---------- Helper: repeats কে অ্যারেতে রূপান্তর ----------
+  const getRepeatsArray = (repeats) => {
+    if (!repeats) return [];
+    if (Array.isArray(repeats)) return repeats;
+    if (typeof repeats === 'string') return repeats.split(',').map(s => s.trim().toLowerCase());
+    return [];
+  };
+
+  // ---------- Helper: তারিখ থেকে মাস ও দিন বের করা ----------
+  const formatDateMonthDay = (dateStr, locale = 'en') => {
+    if (!dateStr || !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr || '';
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    return date.toLocaleDateString(locale === 'bn' ? 'bn-BD' : 'en-US', { month: 'short', day: 'numeric' });
+  };
+
+  // ---------- Helper: একটি নির্দিষ্ট তারিখে টাস্ক সম্পন্ন হয়েছে কিনা ----------
+  const isTaskCompletedOnDate = (task, date) => {
+    return task.completedDates?.[date] || false;
+  };
+
+  // ---------- গতকালের অসম্পূর্ণ টাস্ক ----------
   const yesterdayIncomplete = useMemo(() => {
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -36,23 +86,19 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
     const dayOfWeek = yesterday.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
 
     return tasks.filter(task => {
-      // 1. নির্দিষ্ট তারিখের টাস্ক (date ফিল্ড)
       if (task.date === yesterdayStr) {
-        return !task.completed;
+        return !isTaskCompletedOnDate(task, yesterdayStr);
       }
-      
-      // 2. রিপিটিং টাস্ক (repeats বা scheduledDay)
+      const repeats = getRepeatsArray(task.repeats);
       const isScheduledYesterday = 
-        (task.repeats && task.repeats.includes(dayOfWeek)) || 
-        (task.scheduledDay === dayOfWeek);
-      
+        repeats.includes(dayOfWeek) || 
+        (task.scheduledDay && task.scheduledDay.toLowerCase() === dayOfWeek);
       if (!isScheduledYesterday) return false;
-
-      return !task.completed || task.completedDate !== yesterdayStr;
+      return !isTaskCompletedOnDate(task, yesterdayStr);
     });
   }, [tasks]);
 
-  // ---------- সাপ্তাহিক অসম্পূর্ণ টাস্ক (গত ৭ দিন, date ফিল্ড সহ) ----------
+  // ---------- সাপ্তাহিক অসম্পূর্ণ টাস্ক ----------
   const weeklyIncomplete = useMemo(() => {
     const today = new Date();
     const last7Days = [];
@@ -69,17 +115,13 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
     const result = [];
     tasks.forEach(task => {
       last7Days.forEach(day => {
-        // 1. নির্দিষ্ট তারিখের টাস্ক চেক
         const isDateMatch = task.date === day.dateStr;
-        
-        // 2. রিপিটিং টাস্ক চেক
+        const repeats = getRepeatsArray(task.repeats);
         const isRecurringMatch = 
-          (task.repeats && task.repeats.includes(day.dayOfWeek)) || 
-          (task.scheduledDay === day.dayOfWeek);
-        
+          repeats.includes(day.dayOfWeek) || 
+          (task.scheduledDay && task.scheduledDay.toLowerCase() === day.dayOfWeek);
         const isScheduled = isDateMatch || isRecurringMatch;
-        
-        if (isScheduled && (!task.completed || task.completedDate !== day.dateStr)) {
+        if (isScheduled && !isTaskCompletedOnDate(task, day.dateStr)) {
           result.push({
             ...task,
             scheduledDate: day.dateStr,
@@ -89,7 +131,6 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
       });
     });
 
-    // ইউনিক টাস্ক (একই টাস্ক একাধিক দিনে দেখাতে পারে, কিন্তু সেটাই কাঙ্ক্ষিত)
     const unique = result.filter((item, index, self) => 
       index === self.findIndex(t => t.id === item.id && t.scheduledDate === item.scheduledDate)
     );
@@ -103,33 +144,40 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      const count = tasks.filter(t => t.completed && t.completedDate === dateStr).length;
-      days.push({ date: dateStr, count, label: d.toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { weekday: 'short' }) });
+      const count = tasks.filter(t => isTaskCompletedOnDate(t, dateStr)).length;
+      days.push({ 
+        date: dateStr, 
+        count, 
+        label: d.toLocaleDateString('en-US', { weekday: 'short' }) 
+      });
     }
     return days;
-  }, [tasks, language]);
+  }, [tasks]);
 
   // ---------- স্ট্রিক ----------
   const streak = useMemo(() => {
     let currentStreak = 0;
-    const today = new Date().toISOString().split('T')[0];
     for (let i = 0; i < 30; i++) {
       const d = new Date();
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
-      const hasCompleted = tasks.some(t => t.completed && t.completedDate === dateStr);
+      const hasCompleted = tasks.some(t => isTaskCompletedOnDate(t, dateStr));
       if (hasCompleted) currentStreak++;
       else break;
     }
     return currentStreak;
   }, [tasks]);
 
-  // ---------- সর্বোচ্চ সম্পন্ন দিন ----------
+  // ---------- সর্বোচ্চ সম্পন্ন দিন (Best Day) ----------
   const bestDay = useMemo(() => {
     const counts = {};
-    tasks.forEach(t => {
-      if (t.completed && t.completedDate) {
-        counts[t.completedDate] = (counts[t.completedDate] || 0) + 1;
+    tasks.forEach(task => {
+      if (task.completedDates) {
+        Object.keys(task.completedDates).forEach(date => {
+          if (task.completedDates[date] && date.match(/^\d{4}-\d{2}-\d{2}$/)) {
+            counts[date] = (counts[date] || 0) + 1;
+          }
+        });
       }
     });
     let maxDate = null, maxCount = 0;
@@ -147,7 +195,7 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
-    return tasks.filter(t => t.completed && t.completedDate === yesterdayStr).length;
+    return tasks.filter(t => isTaskCompletedOnDate(t, yesterdayStr)).length;
   }, [tasks]);
 
   // ---------- গতকালের পারফরম্যান্স মেসেজ ----------
@@ -156,8 +204,7 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
     if (count === 0) return language === 'bn' ? 'আপনি গতকাল কোনো টাস্ক সম্পন্ন করেননি' : 'You completed no tasks yesterday';
     if (count >= 5) return language === 'bn' ? `অসাধারণ! আপনি গতকাল ${count}টি টাস্ক সম্পন্ন করেছেন 🚀` : `Excellent! You completed ${count} tasks yesterday 🚀`;
     if (count >= 3) return language === 'bn' ? `ভালো! আপনি গতকাল ${count}টি টাস্ক সম্পন্ন করেছেন 👍` : `Good job! You completed ${count} tasks yesterday 👍`;
-    if (count >= 1) return language === 'bn' ? `আপনি গতকাল ${count}টি টাস্ক সম্পন্ন করেছেন। আরও মনোযোগ দিন!` : `You completed ${count} tasks yesterday. Keep improving!`;
-    return '';
+    return language === 'bn' ? `আপনি গতকাল ${count}টি টাস্ক সম্পন্ন করেছেন। আরও মনোযোগ দিন!` : `You completed ${count} tasks yesterday. Keep improving!`;
   }, [yesterdayCompleted, language]);
 
   // ---------- গোল অগ্রগতি ----------
@@ -166,15 +213,17 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
     const now = new Date();
     return goals
       .map(g => {
+        if (!g.deadline) return null;
         const deadline = new Date(g.deadline);
+        if (isNaN(deadline.getTime())) return null;
         const diff = deadline - now;
         return { ...g, diff };
       })
-      .filter(g => g.diff > 0)
+      .filter(g => g && g.diff > 0)
       .sort((a, b) => a.diff - b.diff)[0] || null;
   }, [goals]);
 
-  // Quick links
+  // ---------- Quick links ----------
   const quickLinks = [
     { id: "today", label: t.today, icon: <ListTodo size={20} />, desc: t.todayDesc, color: "from-blue-500 to-blue-600", bg: "bg-blue-50 dark:bg-blue-900/20", iconBg: "bg-blue-100 dark:bg-blue-900/30", iconColor: "text-blue-600 dark:text-blue-400" },
     { id: "blocks", label: t.timeBlocks, icon: <Clock size={20} />, desc: t.blocksDesc, color: "from-purple-500 to-purple-600", bg: "bg-purple-50 dark:bg-purple-900/20", iconBg: "bg-purple-100 dark:bg-purple-900/30", iconColor: "text-purple-600 dark:text-purple-400" },
@@ -184,14 +233,14 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
     { id: "roadmap", label: t.roadmap, icon: <BookOpen size={20} />, desc: t.roadmapDesc, color: "from-amber-500 to-amber-600", bg: "bg-amber-50 dark:bg-amber-900/20", iconBg: "bg-amber-100 dark:bg-amber-900/30", iconColor: "text-amber-600 dark:text-amber-400" },
   ];
 
-  // Feature cards
+  // ---------- Features ----------
   const features = [
     { icon: <Zap size={24} />, title: t.feature1Title, desc: t.feature1Desc, color: "from-blue-500 to-cyan-500" },
     { icon: <BarChart size={24} />, title: t.feature2Title, desc: t.feature2Desc, color: "from-green-500 to-emerald-500" },
     { icon: <Users size={24} />, title: t.feature3Title, desc: t.feature3Desc, color: "from-purple-500 to-pink-500" },
   ];
 
-  // Welcome message
+  // ---------- Greeting ----------
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (language === "bn") {
@@ -251,7 +300,7 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
         <div className="lg:col-span-1 space-y-4">
           <StatCard
             title={t.totalTasks}
-            value={stats?.totalTasks || 0}
+            value={stats?.totalTasks || tasks.length}
             icon={<ListTodo size={22} />}
             gradient="from-blue-500 to-blue-600"
             lightBg="bg-blue-50 dark:bg-blue-900/20"
@@ -261,7 +310,7 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
           />
           <StatCard
             title={t.completedTasks}
-            value={stats?.completedTasks || 0}
+            value={stats?.completedTasks || tasks.filter(t => isTaskCompletedOnDate(t, getTodayDate())).length}
             icon={<CheckCircle size={22} />}
             gradient="from-green-500 to-green-600"
             lightBg="bg-green-50 dark:bg-green-900/20"
@@ -297,21 +346,27 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
             <TrendingUp size={16} className="text-indigo-500" /> {language === 'bn' ? 'গত ৭ দিনের সম্পন্ন টাস্ক' : 'Last 7 Days Completed'}
           </h3>
           <div className="flex items-end justify-between h-24 gap-1">
-            {last7DaysCompleted.map((day, idx) => (
-              <div key={idx} className="flex flex-col items-center flex-1">
-                <div className="w-full bg-indigo-100 dark:bg-indigo-900/30 rounded-t-lg relative" style={{ height: `${Math.max(4, day.count * 8)}px` }}>
-                  <div className="absolute bottom-0 w-full bg-indigo-500 dark:bg-indigo-600 rounded-t-lg" style={{ height: `${Math.max(4, day.count * 8)}px` }} />
+            {last7DaysCompleted.map((day, idx) => {
+              const height = Math.min(80, Math.max(4, day.count * 8));
+              return (
+                <div key={idx} className="flex flex-col items-center flex-1">
+                  <div className="w-full bg-indigo-100 dark:bg-indigo-900/30 rounded-t-lg relative" style={{ height: `${height}px` }}>
+                    <div 
+                      className="absolute bottom-0 w-full bg-indigo-500 dark:bg-indigo-600 rounded-t-lg transition-all" 
+                      style={{ height: `${height}px` }} 
+                    />
+                  </div>
+                  <span className="text-xs mt-2 text-gray-600 dark:text-gray-400">{day.label}</span>
                 </div>
-                <span className="text-xs mt-2 text-gray-600 dark:text-gray-400">{day.label}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
 
-      {/* গ্রিডে অসম্পূর্ণ টাস্ক – গতকাল + সাপ্তাহিক */}
+      {/* Incomplete tasks grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* গতকালের কার্ড */}
+        {/* Yesterday's card */}
         {yesterdayIncomplete.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-red-200 dark:border-red-800 overflow-hidden hover:shadow-2xl transition-all">
             <div className="p-5 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/20 dark:to-orange-900/20 border-b border-red-200 dark:border-red-800">
@@ -335,7 +390,7 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
                   <div className="flex-1">
                     <h4 className="font-semibold text-gray-900 dark:text-white">{task.title}</h4>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {task.start} – {task.end}
+                      {task.start || '—'} – {task.end || '—'}
                     </p>
                   </div>
                   <button
@@ -355,7 +410,7 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
           </div>
         )}
 
-        {/* সাপ্তাহিক কার্ড */}
+        {/* Weekly card */}
         {weeklyIncomplete.length > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-amber-200 dark:border-amber-800 overflow-hidden hover:shadow-2xl transition-all">
             <div className="p-5 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-900/20 dark:to-yellow-900/20 border-b border-amber-200 dark:border-amber-800">
@@ -379,7 +434,7 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
                   <div className="flex-1">
                     <h4 className="font-semibold text-gray-900 dark:text-white">{task.title}</h4>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex items-center gap-2">
-                      <span>{task.start} – {task.end}</span>
+                      <span>{task.start || '—'} – {task.end || '—'}</span>
                       <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
                       <span className="text-amber-600 dark:text-amber-400 font-medium">{task.displayDate}</span>
                     </p>
@@ -410,9 +465,9 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
         )}
       </div>
 
-      {/* অ্যাডভান্সড ফিচার সারি (৪টি কার্ড) */}
+      {/* Advanced feature row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* স্ট্রিক কার্ড */}
+        {/* Streak card */}
         <motion.div
           whileHover={{ y: -3 }}
           className="bg-gradient-to-br from-orange-500 to-amber-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all"
@@ -427,7 +482,7 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
           <p className="text-xs opacity-80 mt-2">{language === 'bn' ? 'চালিয়ে যান! 🔥' : 'Keep it up! 🔥'}</p>
         </motion.div>
 
-        {/* সেরা দিন কার্ড */}
+        {/* Best day card */}
         {bestDay && (
           <motion.div
             whileHover={{ y: -3 }}
@@ -439,12 +494,14 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
               </div>
               <h4 className="font-semibold">{language === 'bn' ? 'সেরা দিন' : 'Best Day'}</h4>
             </div>
-            <p className="text-2xl font-bold">{new Date(bestDay.date).toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { month: 'short', day: 'numeric' })}</p>
+            <p className="text-2xl font-bold">
+              {formatDateMonthDay(bestDay.date, language)}
+            </p>
             <p className="text-xs opacity-80 mt-2">{bestDay.count} {language === 'bn' ? 'টি টাস্ক সম্পন্ন' : 'tasks completed'}</p>
           </motion.div>
         )}
 
-        {/* গোল কাউন্টডাউন */}
+        {/* Goal countdown */}
         {upcomingGoal && (
           <motion.div
             whileHover={{ y: -3 }}
@@ -463,7 +520,7 @@ const Home = ({ language, stats, userName = "User", onNavigate, goals = [], task
           </motion.div>
         )}
 
-        {/* গতকালের পারফরম্যান্স কার্ড */}
+        {/* Yesterday performance card */}
         <motion.div
           whileHover={{ y: -3 }}
           className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all"

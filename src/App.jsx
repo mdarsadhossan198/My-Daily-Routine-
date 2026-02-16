@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { BrowserRouter, Routes, Route, NavLink, Navigate, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useMemo, lazy, Suspense, useCallback } from 'react';
+import { BrowserRouter, Routes, Route, NavLink, useNavigate } from 'react-router-dom';
 import { Toaster, toast } from 'react-hot-toast';
 import {
   Calendar,
@@ -25,19 +25,33 @@ import {
   MessageSquare,
   Globe,
   Home as HomeIcon,
+  ArrowUp,
+  AlertTriangle,
+  RefreshCw,
+  Download,
+  Upload,
+  Trash2,
+  RotateCcw,
 } from 'lucide-react';
 
-// Components
-import TimeBlockManager from './components/TimeBlockManager';
-import ActivityLog from './components/ActivityLog';
-import WeeklyReview from './components/WeeklyReview';
-import LifeTimer from './components/LifeTimer';
-import History from './components/History';
-import Roadmap from './components/Roadmap';
-import SettingsPanel from './components/SettingsPanel';
-import LearningRoadmap from './components/LearningRoadmap';
-import CommunicationRoadmap from './components/CommunicationRoadmap';
-import Home from './components/Home';
+// Lazy load components for better performance
+const TimeBlockManager = lazy(() => import('./components/TimeBlockManager'));
+const ActivityLog = lazy(() => import('./components/ActivityLog'));
+const WeeklyReview = lazy(() => import('./components/WeeklyReview'));
+const LifeTimer = lazy(() => import('./components/LifeTimer'));
+const History = lazy(() => import('./components/History'));
+const Roadmap = lazy(() => import('./components/Roadmap'));
+const SettingsPanel = lazy(() => import('./components/SettingsPanel'));
+const LearningRoadmap = lazy(() => import('./components/LearningRoadmap'));
+const CommunicationRoadmap = lazy(() => import('./components/CommunicationRoadmap'));
+const Home = lazy(() => import('./components/Home'));
+
+// Loading fallback
+const PageLoader = () => (
+  <div className="flex items-center justify-center h-64">
+    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+  </div>
+);
 
 function App() {
   return (
@@ -48,13 +62,18 @@ function App() {
 }
 
 function AppContent() {
-  const navigate = useNavigate(); // ✅ for navigation
+  const navigate = useNavigate();
 
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('theme') || 'light';
-  });
+  // ---------- State ----------
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [showOfflineBanner, setShowOfflineBanner] = useState(!navigator.onLine);
+  const [backupReminderDismissed, setBackupReminderDismissed] = useState(() => {
+    return localStorage.getItem('backupReminderDismissed') === 'true';
+  });
+
   const [stats, setStats] = useState({
     totalTasks: 0,
     completedTasks: 0,
@@ -63,45 +82,109 @@ function AppContent() {
   });
 
   const [birthDate, setBirthDate] = useState(() => {
-    const saved = localStorage.getItem('birthDate');
-    return saved || '2004-10-01';
+    return localStorage.getItem('birthDate') || '2004-10-01';
   });
 
   const [appLanguage, setAppLanguage] = useState(() => {
-    const saved = localStorage.getItem('appLanguage');
-    return saved || 'bn';
+    return localStorage.getItem('appLanguage') || 'bn';
   });
 
-  // থিম কাস্টমাইজেশন
   const [primaryColor, setPrimaryColor] = useState(() => {
     return localStorage.getItem('primaryColor') || '#3b82f6';
   });
+
   const [fontSize, setFontSize] = useState(() => {
     return localStorage.getItem('fontSize') || 'medium';
   });
 
-  // লোকাল স্টোরেজে ভাষা সংরক্ষণ
+  const [goals, setGoals] = useState([]);
+  const [tasks, setTasks] = useState([]);
+
+  // ---------- Data loading functions ----------
+  const loadStats = useCallback(() => {
+    try {
+      const saved = localStorage.getItem('advancedTimeBlocks');
+      if (saved) {
+        const blocks = JSON.parse(saved);
+        const total = blocks.length;
+        const completed = blocks.filter((b) => b.completedDates && Object.keys(b.completedDates).some(date => date === new Date().toISOString().split('T')[0])).length;
+        const productivity = total > 0 ? Math.round((completed / total) * 100) : 0;
+        setStats({
+          totalTasks: total,
+          completedTasks: completed,
+          productivity,
+          focusTime: Math.floor(Math.random() * 8) + 2, // placeholder
+        });
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  }, []);
+
+  const loadGoals = useCallback(() => {
+    const stored = localStorage.getItem('goalsList');
+    if (stored) {
+      try {
+        setGoals(JSON.parse(stored));
+      } catch (e) {
+        setGoals([]);
+      }
+    } else {
+      setGoals([]);
+    }
+  }, []);
+
+  const loadTasks = useCallback(() => {
+    const saved = localStorage.getItem('advancedTimeBlocks');
+    if (saved) {
+      try {
+        setTasks(JSON.parse(saved));
+      } catch (e) {
+        setTasks([]);
+      }
+    }
+  }, []);
+
+  // ---------- Initial load and storage event listener ----------
+  useEffect(() => {
+    // Load initial data
+    loadStats();
+    loadGoals();
+    loadTasks();
+
+    // Listen to storage changes from other tabs/components
+    const handleStorageChange = (e) => {
+      if (e.key === 'advancedTimeBlocks') {
+        loadTasks();
+        loadStats();
+      }
+      if (e.key === 'goalsList') {
+        loadGoals();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [loadStats, loadGoals, loadTasks]);
+
+  // ---------- Persist settings ----------
   useEffect(() => {
     localStorage.setItem('appLanguage', appLanguage);
   }, [appLanguage]);
 
-  // জন্ম তারিখ সংরক্ষণ
   useEffect(() => {
     localStorage.setItem('birthDate', birthDate);
   }, [birthDate]);
 
-  // থিম সংরক্ষণ
   useEffect(() => {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
-  // প্রাথমিক রঙ প্রয়োগ
   useEffect(() => {
     document.documentElement.style.setProperty('--primary', primaryColor);
     localStorage.setItem('primaryColor', primaryColor);
   }, [primaryColor]);
 
-  // ফন্ট সাইজ প্রয়োগ
   useEffect(() => {
     const root = document.documentElement;
     if (fontSize === 'small') root.style.fontSize = '14px';
@@ -110,7 +193,7 @@ function AppContent() {
     localStorage.setItem('fontSize', fontSize);
   }, [fontSize]);
 
-  // ✅ ডার্ক মোড প্রয়োগ
+  // Dark mode
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -119,14 +202,16 @@ function AppContent() {
     }
   }, [theme]);
 
-  // অনলাইন/অফলাইন টোস্ট
+  // Online/offline
   useEffect(() => {
     const handleOnline = () => {
       setIsOnline(true);
+      setShowOfflineBanner(false);
       toast.success(appLanguage === 'bn' ? 'আপনি অনলাইনে ফিরে এসেছেন!' : 'You are back online!');
     };
     const handleOffline = () => {
       setIsOnline(false);
+      setShowOfflineBanner(true);
       toast.error(
         appLanguage === 'bn'
           ? 'আপনি অফলাইনে আছেন। পরিবর্তন লোকাল স্টোরেজে সংরক্ষিত হবে।'
@@ -141,71 +226,94 @@ function AppContent() {
     };
   }, [appLanguage]);
 
-  // পরিসংখ্যান লোড
+  // Scroll to top button visibility
   useEffect(() => {
-    const loadStats = () => {
-      try {
-        const saved = localStorage.getItem('advancedTimeBlocks');
-        if (saved) {
-          const blocks = JSON.parse(saved);
-          const total = blocks.length;
-          const completed = blocks.filter((b) => b.completed).length;
-          const productivity = total > 0 ? Math.round((completed / total) * 100) : 0;
-          setStats({
-            totalTasks: total,
-            completedTasks: completed,
-            productivity,
-            focusTime: Math.floor(Math.random() * 8) + 2,
-          });
-        }
-      } catch (error) {
-        console.error('Error loading stats:', error);
-      }
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
     };
-    loadStats();
-    const interval = setInterval(loadStats, 5000);
-    return () => clearInterval(interval);
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // গোল ডাটা
-  const [goals, setGoals] = useState([]);
+  // Keyboard shortcuts
   useEffect(() => {
-    const loadGoals = () => {
-      const stored = localStorage.getItem('goalsList');
-      if (stored) {
-        try {
-          setGoals(JSON.parse(stored));
-        } catch (e) {
-          setGoals([]);
-        }
-      } else {
-        setGoals([]);
+    const handleKeyDown = (e) => {
+      // Only if not typing in an input/textarea
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if (e.ctrlKey && e.key === 'h') {
+        e.preventDefault();
+        navigate('/');
+      } else if (e.ctrlKey && e.key === 't') {
+        e.preventDefault();
+        navigate('/today');
+      } else if (e.ctrlKey && e.key === 'b') {
+        e.preventDefault();
+        navigate('/blocks');
+      } else if (e.ctrlKey && e.key === 'w') {
+        e.preventDefault();
+        navigate('/weekly');
+      } else if (e.ctrlKey && e.key === 'r') {
+        e.preventDefault();
+        navigate('/roadmap');
+      } else if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        navigate('/settings');
       }
     };
-    loadGoals();
-    const interval = setInterval(loadGoals, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [navigate]);
 
-  // টাস্ক লিস্ট
-  const [tasks, setTasks] = useState([]);
+  // Backup reminder (every 7 days)
   useEffect(() => {
-    const loadTasks = () => {
-      const saved = localStorage.getItem('advancedTimeBlocks');
-      if (saved) {
-        try {
-          setTasks(JSON.parse(saved));
-        } catch (e) {
-          setTasks([]);
-        }
+    if (backupReminderDismissed) return;
+    const lastBackup = localStorage.getItem('lastBackupDate');
+    const today = new Date().toISOString().split('T')[0];
+    if (!lastBackup) {
+      // First time – set a reminder after 7 days
+      localStorage.setItem('lastBackupDate', today);
+    } else {
+      const daysSince = Math.floor((new Date() - new Date(lastBackup)) / (1000 * 60 * 60 * 24));
+      if (daysSince >= 7) {
+        toast(
+          (t) => (
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="text-yellow-500" size={20} />
+              <span className="flex-1">
+                {appLanguage === 'bn'
+                  ? '৭ দিন ধরে ব্যাকআপ নেওয়া হয়নি। এখনই নিন?'
+                  : 'No backup for 7 days. Take one now?'}
+              </span>
+              <button
+                onClick={() => {
+                  exportData();
+                  localStorage.setItem('lastBackupDate', today);
+                  toast.dismiss(t.id);
+                }}
+                className="px-3 py-1 bg-blue-500 text-white rounded-lg text-sm"
+              >
+                {appLanguage === 'bn' ? 'ব্যাকআপ' : 'Backup'}
+              </button>
+              <button
+                onClick={() => {
+                  setBackupReminderDismissed(true);
+                  localStorage.setItem('backupReminderDismissed', 'true');
+                  toast.dismiss(t.id);
+                }}
+                className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-lg text-sm"
+              >
+                {appLanguage === 'bn' ? 'বাদ দিন' : 'Dismiss'}
+              </button>
+            </div>
+          ),
+          { duration: 10000 }
+        );
       }
-    };
-    loadTasks();
-    const interval = setInterval(loadTasks, 2000);
-    return () => clearInterval(interval);
-  }, []);
+    }
+  }, [backupReminderDismissed, appLanguage]);
 
-  // বর্তমান সময়
+  // Clock
   const [currentTime, setCurrentTime] = useState(() => {
     const now = new Date();
     const hours = now.getHours();
@@ -227,19 +335,77 @@ function AppContent() {
     return () => clearInterval(timer);
   }, []);
 
-  // স্ট্রিক গণনা
-  const streak = useMemo(() => {
-    let current = 0;
-    const todayStr = new Date().toISOString().split('T')[0];
-    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    const hasToday = tasks.some(t => t.completed && t.completedDate === todayStr);
-    const hasYesterday = tasks.some(t => t.completed && t.completedDate === yesterdayStr);
-    if (hasToday) current++;
-    if (hasYesterday) current++;
-    return current;
-  }, [tasks]);
+  // ---------- Helper Functions ----------
+  const exportData = () => {
+    const data = {
+      version: '3.0',
+      exportDate: new Date().toISOString(),
+      timeBlocks: tasks,
+      goals,
+      settings: {
+        birthDate,
+        theme,
+        primaryColor,
+        fontSize,
+        appLanguage,
+      },
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `arsad-planner-backup-${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    localStorage.setItem('lastBackupDate', new Date().toISOString().split('T')[0]);
+    toast.success(appLanguage === 'bn' ? 'ব্যাকআপ সফল!' : 'Backup successful!');
+  };
 
-  // ট্যাব কনফিগারেশন
+  const importData = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.timeBlocks) {
+          if (window.confirm(appLanguage === 'bn' ? `${data.timeBlocks.length}টি টাস্ক ইম্পোর্ট করবেন?` : `Import ${data.timeBlocks.length} tasks?`)) {
+            localStorage.setItem('advancedTimeBlocks', JSON.stringify(data.timeBlocks));
+            if (data.goals) localStorage.setItem('goalsList', JSON.stringify(data.goals));
+            if (data.settings) {
+              if (data.settings.birthDate) setBirthDate(data.settings.birthDate);
+              if (data.settings.theme) setTheme(data.settings.theme);
+              if (data.settings.primaryColor) setPrimaryColor(data.settings.primaryColor);
+              if (data.settings.fontSize) setFontSize(data.settings.fontSize);
+              if (data.settings.appLanguage) setAppLanguage(data.settings.appLanguage);
+            }
+            setTasks(data.timeBlocks);
+            setGoals(data.goals || []);
+            toast.success(appLanguage === 'bn' ? 'ইম্পোর্ট সফল!' : 'Import successful!');
+          }
+        }
+      } catch (error) {
+        toast.error(appLanguage === 'bn' ? 'ফাইল এরর' : 'File error');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const resetAllData = () => {
+    if (window.confirm(appLanguage === 'bn' ? 'সব ডাটা মুছে ফেলবেন? এটি অপরিবর্তনীয়!' : 'Delete all data? This cannot be undone!')) {
+      localStorage.removeItem('advancedTimeBlocks');
+      localStorage.removeItem('goalsList');
+      setTasks([]);
+      setGoals([]);
+      toast.success(appLanguage === 'bn' ? 'সব ডাটা মুছে ফেলা হয়েছে' : 'All data cleared');
+    }
+  };
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Tabs
   const tabs = [
     { id: 'home', path: '/', label: appLanguage === 'bn' ? 'হোম' : 'Home', icon: <HomeIcon size={20} /> },
     { id: 'today', path: '/today', label: appLanguage === 'bn' ? 'আজ' : 'Today', icon: <ListTodo size={20} /> },
@@ -253,9 +419,14 @@ function AppContent() {
     { id: 'settings', path: '/settings', label: appLanguage === 'bn' ? 'সেটিংস' : 'Settings', icon: <SettingsIcon size={20} /> },
   ];
 
+  const todayDate = new Date().toLocaleDateString(appLanguage === 'bn' ? 'bn-BD' : 'en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
-      {/* কাস্টম থিম ভেরিয়েবল */}
       <style>{`
         :root {
           --primary: ${primaryColor};
@@ -276,11 +447,26 @@ function AppContent() {
         }}
       />
 
-      {/* হেডার */}
+      {/* Offline Banner */}
+      {showOfflineBanner && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-yellow-500 text-white p-2 text-center text-sm flex items-center justify-center gap-2">
+          <CloudOff size={16} />
+          <span>
+            {appLanguage === 'bn'
+              ? 'আপনি অফলাইনে আছেন। কিছু ফিচার সীমিত হতে পারে।'
+              : 'You are offline. Some features may be limited.'}
+          </span>
+          <button onClick={() => setShowOfflineBanner(false)} className="p-1 hover:bg-yellow-600 rounded">
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Header */}
       <header className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 sticky top-0 z-40">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            {/* লোগো ও টাইটেল */}
+            {/* Logo & Title */}
             <div className="flex items-center">
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -300,7 +486,7 @@ function AppContent() {
                     <Clock size={10} /> {currentTime}
                   </p>
                 </div>
-                <div className="ml-4 flex items-center px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800">
+                <div className="ml-4 hidden md:flex items-center px-3 py-1 rounded-full bg-gray-100 dark:bg-gray-800">
                   {isOnline ? (
                     <Cloud className="text-green-500 mr-1" size={14} />
                   ) : (
@@ -313,34 +499,36 @@ function AppContent() {
               </div>
             </div>
 
-            {/* ডান পাশের বাটন */}
+            {/* Right buttons */}
             <div className="flex items-center gap-3">
-              {/* ভাষা টগল */}
+              {/* Language */}
               <button
                 onClick={() => setAppLanguage(appLanguage === 'bn' ? 'en' : 'bn')}
                 className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                title={appLanguage === 'bn' ? 'Switch to English' : 'বাংলায় যান'}
               >
                 <Globe size={20} />
                 <span className="ml-1 text-xs font-medium">{appLanguage === 'bn' ? 'EN' : 'BN'}</span>
               </button>
 
-              {/* থিম টগল */}
+              {/* Theme */}
               <button
                 onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
                 className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                title={theme === 'light' ? 'Dark mode' : 'Light mode'}
               >
                 {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
               </button>
 
-              {/* নোটিফিকেশন বেল */}
-              <div className="relative">
+              {/* Notification Bell */}
+              <div className="relative hidden sm:block">
                 <button className="p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
                   <Bell size={20} />
                 </button>
                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               </div>
 
-              {/* ইউজার প্রোফাইল */}
+              {/* User */}
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center text-white font-semibold shadow-md">
                   <User size={16} />
@@ -355,7 +543,7 @@ function AppContent() {
         </div>
       </header>
 
-      {/* ডেস্কটপ নেভিগেশন */}
+      {/* Desktop Navigation */}
       <nav className="hidden lg:block bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border-b border-gray-200/50 dark:border-gray-700/50 sticky top-16 z-30">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-center items-center gap-1 overflow-x-auto py-2 scrollbar-hide">
@@ -384,7 +572,7 @@ function AppContent() {
         </div>
       </nav>
 
-      {/* মোবাইল মেনু */}
+      {/* Mobile Menu */}
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-x-0 top-32 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-xl rounded-b-2xl p-4 animate-slideDown">
           <div className="grid grid-cols-2 gap-2">
@@ -410,56 +598,125 @@ function AppContent() {
               </NavLink>
             ))}
           </div>
+          {/* Quick actions in mobile menu */}
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-around">
+            <button
+              onClick={exportData}
+              className="flex flex-col items-center text-xs text-gray-600 dark:text-gray-400"
+              title={appLanguage === 'bn' ? 'ব্যাকআপ' : 'Backup'}
+            >
+              <Download size={18} />
+              <span>{appLanguage === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
+            </button>
+            <label className="flex flex-col items-center text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+              <Upload size={18} />
+              <span>{appLanguage === 'bn' ? 'ইম্পোর্ট' : 'Import'}</span>
+              <input type="file" accept=".json" onChange={importData} className="hidden" />
+            </label>
+            <button
+              onClick={resetAllData}
+              className="flex flex-col items-center text-xs text-red-600 dark:text-red-400"
+              title={appLanguage === 'bn' ? 'সব মুছুন' : 'Clear all'}
+            >
+              <Trash2 size={18} />
+              <span>{appLanguage === 'bn' ? 'মুছুন' : 'Clear'}</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* মূল কন্টেন্ট */}
+      {/* Main Content with Suspense */}
       <main className="flex-1 overflow-y-auto">
         <div className="p-4 sm:p-6 lg:p-8">
-          <div className="animate-fadeIn">
-            <Routes>
-              {/* ✅ Home এখন tasks ও goals প্রপ পায়, এবং onNavigate-এ navigate ব্যবহার করে */}
-              <Route
-                path="/"
-                element={
-                  <Home
-                    stats={stats}
-                    streak={streak}
-                    goals={goals}
-                    tasks={tasks}          // recentTasks এর পরিবর্তে tasks
-                    language={appLanguage}
-                    onNavigate={(path) => navigate(`/${path}`)} // নেভিগেট ফাংশন
-                  />
-                }
-              />
-              <Route path="/today" element={<ActivityLog />} />
-              <Route path="/blocks" element={<TimeBlockManager />} />
-              <Route path="/weekly" element={<WeeklyReview />} />
-              <Route path="/history" element={<History language={appLanguage} />} />
-              <Route path="/roadmap" element={<Roadmap />} />
-              <Route path="/learning" element={<LearningRoadmap />} />
-              <Route path="/communication" element={<CommunicationRoadmap />} />
-              <Route path="/lifetimer" element={<LifeTimer birthDate={birthDate} />} />
-              <Route
-                path="/settings"
-                element={
-                  <SettingsPanel
-                    birthDate={birthDate}
-                    setBirthDate={setBirthDate}
-                    theme={theme}
-                    setTheme={setTheme}
-                  />
-                }
-              />
-            </Routes>
-          </div>
+          <Suspense fallback={<PageLoader />}>
+            <div className="animate-fadeIn">
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <Home
+                      stats={stats}
+                      goals={goals}
+                      tasks={tasks}
+                      language={appLanguage}
+                      onNavigate={(path) => navigate(`/${path}`)}
+                    />
+                  }
+                />
+                <Route path="/today" element={<ActivityLog />} />
+                <Route path="/blocks" element={<TimeBlockManager />} />
+                <Route path="/weekly" element={<WeeklyReview />} />
+                <Route path="/history" element={<History language={appLanguage} />} />
+                <Route path="/roadmap" element={<Roadmap />} />
+                <Route path="/learning" element={<LearningRoadmap />} />
+                <Route path="/communication" element={<CommunicationRoadmap />} />
+                <Route path="/lifetimer" element={<LifeTimer birthDate={birthDate} />} />
+                <Route
+                  path="/settings"
+                  element={
+                    <SettingsPanel
+                      birthDate={birthDate}
+                      setBirthDate={setBirthDate}
+                      theme={theme}
+                      setTheme={setTheme}
+                      primaryColor={primaryColor}
+                      setPrimaryColor={setPrimaryColor}
+                      fontSize={fontSize}
+                      setFontSize={setFontSize}
+                      onExport={exportData}
+                      onImport={importData}
+                      onReset={resetAllData}
+                    />
+                  }
+                />
+              </Routes>
+            </div>
+          </Suspense>
 
-          {/* ফুটার */}
-          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 text-center text-sm text-gray-500 dark:text-gray-400">
-            <p>start day this my 14/02/2026</p>
+          {/* Footer with date and quick actions */}
+          <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
+              <p>
+                {appLanguage === 'bn' ? 'আজকের তারিখ: ' : 'Today: '} {todayDate}
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={exportData}
+                  className="flex items-center gap-1 px-3 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition"
+                  title={appLanguage === 'bn' ? 'ডাটা ব্যাকআপ' : 'Backup data'}
+                >
+                  <Download size={14} />
+                  <span className="hidden sm:inline">{appLanguage === 'bn' ? 'ব্যাকআপ' : 'Backup'}</span>
+                </button>
+                <label className="flex items-center gap-1 px-3 py-1 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition cursor-pointer">
+                  <Upload size={14} />
+                  <span className="hidden sm:inline">{appLanguage === 'bn' ? 'ইম্পোর্ট' : 'Import'}</span>
+                  <input type="file" accept=".json" onChange={importData} className="hidden" />
+                </label>
+                <button
+                  onClick={resetAllData}
+                  className="flex items-center gap-1 px-3 py-1 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition"
+                  title={appLanguage === 'bn' ? 'সব ডাটা মুছুন' : 'Clear all data'}
+                >
+                  <Trash2 size={14} />
+                  <span className="hidden sm:inline">{appLanguage === 'bn' ? 'মুছুন' : 'Clear'}</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </main>
+
+      {/* Scroll to top button */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 p-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-full shadow-lg hover:shadow-xl transition-all z-50 animate-bounce"
+          aria-label="Scroll to top"
+        >
+          <ArrowUp size={20} />
+        </button>
+      )}
 
       <style>{`
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }

@@ -1,39 +1,72 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
-  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area
+  PieChart, Pie, Cell, AreaChart, Area
 } from 'recharts';
 import {
-  TrendingUp, Target, Clock, Calendar, Award, TrendingDown,
-  Download, ChevronDown, Brain, Heart, Zap,
+  TrendingUp, Target, Clock, Calendar, Award,
+  Download, Brain, Zap,
   BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon,
-  RefreshCw, Eye, EyeOff, CheckCircle, XCircle, AlertCircle,
-  BookOpen, Server, Database, Cloud, Terminal, Layout
+  RefreshCw, CheckCircle, XCircle, AlertCircle,
+  BookOpen, Edit2, Save, X, ListTodo, Filter
 } from 'lucide-react';
 
 const WeeklyReview = () => {
-  // ---------- রিয়েল ডেটা লোড ----------
-  const [activities, setActivities] = useState([]);
+  // ---------- State ----------
   const [timeBlocks, setTimeBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  
+  // মডাল ও সিলেকশনের জন্য স্টেট
+  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showDayModal, setShowDayModal] = useState(false);
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
 
-  useEffect(() => {
-    const loadData = () => {
+  // গোল এডিট করার জন্য স্টেট
+  const [editingGoalId, setEditingGoalId] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  const [goalTargets, setGoalTargets] = useState(() => {
+    const saved = localStorage.getItem('weeklyGoals');
+    if (saved) {
       try {
-        const activityLog = localStorage.getItem('activityLog');
-        const blocks = localStorage.getItem('advancedTimeBlocks');
-        setActivities(activityLog ? JSON.parse(activityLog) : []);
-        setTimeBlocks(blocks ? JSON.parse(blocks) : []);
+        return JSON.parse(saved);
       } catch (e) {
-        console.error('Error loading data:', e);
-      } finally {
-        setLoading(false);
+        return { tasks: 50, focus: 20, rate: 80 };
+      }
+    }
+    return { tasks: 50, focus: 20, rate: 80 };
+  });
+
+  // ডেটা লোড ফাংশন
+  const loadData = useCallback(() => {
+    try {
+      const blocks = localStorage.getItem('advancedTimeBlocks');
+      setTimeBlocks(blocks ? JSON.parse(blocks) : []);
+    } catch (e) {
+      console.error('Error loading data:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // মাউন্ট ও স্টোরেজ ইভেন্ট লিসেনার
+  useEffect(() => {
+    setMounted(true);
+    loadData();
+    const handleStorage = (e) => {
+      if (e.key === 'advancedTimeBlocks') {
+        loadData();
       }
     };
-    loadData();
-    const interval = setInterval(loadData, 10000);
-    return () => clearInterval(interval);
-  }, []);
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [loadData]);
+
+  // গোল টার্গেট সংরক্ষণ
+  useEffect(() => {
+    localStorage.setItem('weeklyGoals', JSON.stringify(goalTargets));
+  }, [goalTargets]);
 
   // ---------- লাস্ট ৭ দিন ----------
   const last7Days = useMemo(() => {
@@ -50,49 +83,68 @@ const WeeklyReview = () => {
   // ---------- ডেইলি স্ট্যাটস ----------
   const dailyStats = useMemo(() => {
     return last7Days.map(date => {
-      const tasksOnDate = activities.filter(task => task.createdAt?.startsWith(date));
       const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
-      const blocksOnDate = timeBlocks.filter(block => 
-        (block.repeats?.includes(dayName)) || block.scheduledDay === dayName
-      );
-      const completedBlocks = blocksOnDate.filter(b => b.completed && b.completedDate === date).length;
-      const totalTasks = tasksOnDate.length + blocksOnDate.length;
-      const completedTasks = tasksOnDate.filter(t => t.completed).length + completedBlocks;
-      const focusTime = tasksOnDate.reduce((sum, task) => {
-        if (task.timer?.elapsed) return sum + (task.timer.elapsed / 3600);
-        return sum;
-      }, 0);
-      const estimatedTime = blocksOnDate.reduce((sum, block) => {
-        const start = block.start?.split(':').map(Number) || [9, 0];
-        const end = block.end?.split(':').map(Number) || [10, 0];
-        const duration = (end[0] * 60 + end[1]) - (start[0] * 60 + start[1]);
-        return sum + (duration / 60);
-      }, 0);
+      
+      const blocksOnDate = timeBlocks.filter(block => {
+        if (block.date === date) return true;
+        if (block.repeats && block.repeats.includes(dayName)) return true;
+        if (block.scheduledDay === dayName) return true;
+        return false;
+      });
+
+      const completedBlocks = blocksOnDate.filter(b => b.completedDates?.[date]).length;
+      const totalTasks = blocksOnDate.length;
+      
+      let focusTime = 0;
+      blocksOnDate.forEach(block => {
+        if (block.completedDates?.[date] && block.start && block.end) {
+          const [sh, sm] = block.start.split(':').map(Number);
+          const [eh, em] = block.end.split(':').map(Number);
+          const duration = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+          if (duration > 0) focusTime += duration;
+        }
+      });
+
+      let estimatedTime = 0;
+      blocksOnDate.forEach(block => {
+        if (block.start && block.end) {
+          const [sh, sm] = block.start.split(':').map(Number);
+          const [eh, em] = block.end.split(':').map(Number);
+          const duration = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+          if (duration > 0) estimatedTime += duration;
+        }
+      });
+
       return {
         date,
         day: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
         displayDate: new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
         tasks: totalTasks,
-        completed: completedTasks,
-        completionRate: totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0,
+        completed: completedBlocks,
+        completionRate: totalTasks ? Math.round((completedBlocks / totalTasks) * 100) : 0,
         focusTime: Math.round(focusTime * 10) / 10,
         estimatedTime: Math.round(estimatedTime * 10) / 10,
-        mood: 3 + Math.random() * 2,
-        energy: 60 + Math.random() * 40
+        blocks: blocksOnDate  // সম্পূর্ণ ব্লক লিস্ট সংরক্ষণ
       };
     });
-  }, [activities, timeBlocks, last7Days]);
+  }, [timeBlocks, last7Days]);
 
   // ---------- ক্যাটাগরি ডিস্ট্রিবিউশন ----------
   const categoryData = useMemo(() => {
     const categoryMap = new Map();
     timeBlocks.forEach(block => {
-      if (block.completed) {
+      // শুধু সম্পন্ন ব্লক বিবেচনা করি
+      if (block.completedDates && Object.keys(block.completedDates).length > 0) {
         const cat = block.category || 'other';
         const start = block.start?.split(':').map(Number) || [9, 0];
         const end = block.end?.split(':').map(Number) || [10, 0];
         const duration = ((end[0] * 60 + end[1]) - (start[0] * 60 + start[1])) / 60;
-        categoryMap.set(cat, (categoryMap.get(cat) || 0) + duration);
+        if (!categoryMap.has(cat)) {
+          categoryMap.set(cat, { totalTime: 0, blocks: [] });
+        }
+        const entry = categoryMap.get(cat);
+        entry.totalTime += duration;
+        entry.blocks.push(block);
       }
     });
     const categories = [
@@ -104,17 +156,22 @@ const WeeklyReview = () => {
       { id: 'fitness', name: 'Fitness', color: '#EF4444', icon: '💪' },
       { id: 'other', name: 'Other', color: '#6B7280', icon: '📌' }
     ];
-    return categories.map(cat => ({
-      ...cat,
-      value: Math.round(categoryMap.get(cat.id) || 0)
-    })).filter(c => c.value > 0);
+    return categories.map(cat => {
+      const data = categoryMap.get(cat.id);
+      return {
+        ...cat,
+        value: data ? Math.round(data.totalTime) : 0,
+        blocks: data ? data.blocks : []
+      };
+    }).filter(c => c.value > 0);
   }, [timeBlocks]);
 
-  // ---------- প্রায়োরিটি ডিস্ট্রিবিউশন ----------
+  // ---------- প্রায়োরিটি ডিস্ট্রিবিউশন (FIXED) ----------
   const priorityData = useMemo(() => {
     const priorityMap = new Map();
     timeBlocks.forEach(block => {
-      if (block.completed) {
+      // শুধু সম্পন্ন ব্লক বিবেচনা করি
+      if (block.completedDates && Object.keys(block.completedDates).length > 0) {
         const pri = block.priority || 'medium';
         priorityMap.set(pri, (priorityMap.get(pri) || 0) + 1);
       }
@@ -155,7 +212,7 @@ const WeeklyReview = () => {
     };
   }, [dailyStats]);
 
-  // ---------- পার্সোনালাইজড ইনসাইট (রোডম্যাপ থেকে) ----------
+  // ---------- ইনসাইট (রোডম্যাপ) ----------
   const insights = useMemo(() => {
     const roadmap = localStorage.getItem('webDevRoadmap');
     if (!roadmap) return { nextTopic: null, reviewTopics: [], message: 'Complete your roadmap setup!' };
@@ -188,19 +245,36 @@ const WeeklyReview = () => {
   }, []);
 
   // ---------- গোল ----------
-  const [goals, setGoals] = useState([
-    { id: 1, name: 'Weekly Tasks', current: 0, target: 50, unit: 'tasks' },
-    { id: 2, name: 'Focus Time', current: 0, target: 20, unit: 'hours' },
-    { id: 3, name: 'Completion Rate', current: 0, target: 80, unit: '%' },
-  ]);
+  const goals = useMemo(() => [
+    { id: 1, name: 'Weekly Tasks', current: weeklyStats.totalCompleted, target: goalTargets.tasks, unit: 'tasks', key: 'tasks' },
+    { id: 2, name: 'Focus Time', current: weeklyStats.totalFocus, target: goalTargets.focus, unit: 'hours', key: 'focus' },
+    { id: 3, name: 'Completion Rate', current: weeklyStats.avgCompletion, target: goalTargets.rate, unit: '%', key: 'rate' },
+  ], [weeklyStats, goalTargets]);
 
-  useEffect(() => {
-    setGoals([
-      { id: 1, name: 'Weekly Tasks', current: weeklyStats.totalCompleted, target: 50, unit: 'tasks' },
-      { id: 2, name: 'Focus Time', current: weeklyStats.totalFocus, target: 20, unit: 'hours' },
-      { id: 3, name: 'Completion Rate', current: weeklyStats.avgCompletion, target: 80, unit: '%' },
-    ]);
-  }, [weeklyStats]);
+  // গোল এডিট হ্যান্ডলার
+  const startEditGoal = (goal) => {
+    setEditingGoalId(goal.id);
+    setEditValue(goal.target.toString());
+  };
+
+  const saveGoalEdit = () => {
+    if (editingGoalId === null) return;
+    const newValue = parseFloat(editValue);
+    if (isNaN(newValue) || newValue < 0) return;
+    
+    const goal = goals.find(g => g.id === editingGoalId);
+    if (goal) {
+      setGoalTargets(prev => ({
+        ...prev,
+        [goal.key]: newValue
+      }));
+    }
+    setEditingGoalId(null);
+  };
+
+  const cancelGoalEdit = () => {
+    setEditingGoalId(null);
+  };
 
   // ---------- এক্সপোর্ট CSV ----------
   const exportData = () => {
@@ -217,7 +291,139 @@ const WeeklyReview = () => {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) {
+  // ---------- ক্লিক হ্যান্ডলার ----------
+  const handleBarClick = (data) => {
+    if (data && data.activePayload && data.activePayload.length > 0) {
+      const dayData = data.activePayload[0].payload;
+      setSelectedDay(dayData);
+      setShowDayModal(true);
+    }
+  };
+
+  const handlePieClick = (data) => {
+    if (data && data.payload) {
+      setSelectedCategory(data.payload);
+      setShowCategoryModal(true);
+    }
+  };
+
+  // ---------- মডাল কম্পোনেন্ট ----------
+  const DayDetailModal = ({ day, onClose }) => {
+    if (!day) return null;
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                {day.displayDate} ({day.day}) Details
+              </h3>
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Total Tasks</p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{day.tasks}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Completed</p>
+                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{day.completed}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Completion Rate</p>
+                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{day.completionRate}%</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Focus Time</p>
+                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{day.focusTime}h</p>
+              </div>
+            </div>
+            <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              <ListTodo size={18} /> Tasks
+            </h4>
+            {day.blocks && day.blocks.length > 0 ? (
+              <div className="space-y-2">
+                {day.blocks.map(block => {
+                  const isCompleted = block.completedDates?.[day.date];
+                  return (
+                    <div key={block.id} className={`p-3 rounded-lg border ${isCompleted ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
+                      <div className="flex items-center gap-2">
+                        {isCompleted ? <CheckCircle size={16} className="text-green-500" /> : <Clock size={16} className="text-gray-400" />}
+                        <span className={`font-medium ${isCompleted ? 'line-through text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                          {block.title}
+                        </span>
+                      </div>
+                      {block.start && block.end && (
+                        <p className="text-xs text-gray-500 mt-1 ml-6">
+                          {block.start} - {block.end}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-8">No tasks on this day.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const CategoryDetailModal = ({ category, onClose }) => {
+    if (!category) return null;
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+          <div className="p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span>{category.icon}</span> {category.name} Tasks
+              </h3>
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+              <p className="text-sm text-gray-500 dark:text-gray-400">Total Time Spent</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{category.value} hours</p>
+            </div>
+            <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+              <ListTodo size={18} /> Completed Tasks
+            </h4>
+            {category.blocks && category.blocks.length > 0 ? (
+              <div className="space-y-2">
+                {category.blocks.map(block => {
+                  // কোন তারিখে সম্পন্ন হয়েছে তা বের করি
+                  const completedDate = block.completedDates ? Object.keys(block.completedDates)[0] : null;
+                  return (
+                    <div key={block.id} className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle size={16} className="text-green-500" />
+                        <span className="font-medium text-gray-900 dark:text-white">{block.title}</span>
+                      </div>
+                      {completedDate && (
+                        <p className="text-xs text-gray-500 mt-1 ml-6">
+                          Completed on: {new Date(completedDate).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-gray-500 text-center py-8">No tasks in this category.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (loading || !mounted) {
     return (
       <div className="flex items-center justify-center h-64">
         <RefreshCw className="animate-spin text-blue-600" size={48} />
@@ -312,18 +518,18 @@ const WeeklyReview = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <BarChart3 size={20} />
-            Daily Tasks
+            Daily Tasks (Click on bars for details)
           </h3>
           <div className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyStats}>
+              <BarChart data={dailyStats} onClick={handleBarClick}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
                 <XAxis dataKey="day" stroke="#9CA3AF" />
                 <YAxis stroke="#9CA3AF" />
                 <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.5rem', color: '#fff' }} labelStyle={{ color: '#9CA3AF' }} />
                 <Legend />
-                <Bar dataKey="tasks" fill="#3B82F6" name="Total Tasks" />
-                <Bar dataKey="completed" fill="#10B981" name="Completed" />
+                <Bar dataKey="tasks" fill="#3B82F6" name="Total Tasks" cursor="pointer" />
+                <Bar dataKey="completed" fill="#10B981" name="Completed" cursor="pointer" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -354,13 +560,24 @@ const WeeklyReview = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
             <PieChartIcon size={20} />
-            Time by Category
+            Time by Category (Click to see tasks)
           </h3>
           {categoryData.length > 0 ? (
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={categoryData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={2} dataKey="value" label={(entry) => `${entry.name} ${entry.value}h`}>
+                  <Pie 
+                    data={categoryData} 
+                    cx="50%" 
+                    cy="50%" 
+                    innerRadius={50} 
+                    outerRadius={80} 
+                    paddingAngle={2} 
+                    dataKey="value" 
+                    label={(entry) => `${entry.name} ${entry.value}h`}
+                    onClick={handlePieClick}
+                    cursor="pointer"
+                  >
                     {categoryData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
                   </Pie>
                   <Tooltip formatter={(value) => `${value} hours`} />
@@ -448,25 +665,53 @@ const WeeklyReview = () => {
         </div>
       </div>
 
-      {/* গোল ট্র্যাকার */}
+      {/* গোল ট্র্যাকার (এডিটেবল) */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex justify-between items-center mb-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
             <Target size={20} />
-            Weekly Goals
+            Weekly Goals (Click ✏️ to edit)
           </h3>
-          <span className="text-sm text-gray-500">Targets are adjustable</span>
+          <span className="text-sm text-gray-500">Adjust targets to your preference</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {goals.map(goal => {
             const progress = Math.min(100, Math.round((goal.current / goal.target) * 100) || 0);
+            const isEditing = editingGoalId === goal.id;
             return (
               <div key={goal.id} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-medium text-gray-900 dark:text-white">{goal.name}</span>
-                  <span className={`text-sm font-bold ${progress >= 100 ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`}>
-                    {goal.current}/{goal.target} {goal.unit}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {isEditing ? (
+                      <>
+                        <input
+                          type="number"
+                          value={editValue}
+                          onChange={(e) => setEditValue(e.target.value)}
+                          className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                          min="1"
+                          step={goal.unit === '%' ? '1' : '0.5'}
+                          autoFocus
+                        />
+                        <button onClick={saveGoalEdit} className="text-green-600 hover:text-green-700">
+                          <Save size={16} />
+                        </button>
+                        <button onClick={cancelGoalEdit} className="text-red-600 hover:text-red-700">
+                          <X size={16} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className={`text-sm font-bold ${progress >= 100 ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`}>
+                          {goal.current}/{goal.target} {goal.unit}
+                        </span>
+                        <button onClick={() => startEditGoal(goal)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                          <Edit2 size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <div className="h-2 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
                   <div className={`h-full rounded-full transition-all ${progress >= 100 ? 'bg-green-500' : 'bg-blue-500'}`} style={{ width: `${progress}%` }} />
@@ -481,6 +726,10 @@ const WeeklyReview = () => {
           })}
         </div>
       </div>
+
+      {/* মডাল */}
+      {showDayModal && <DayDetailModal day={selectedDay} onClose={() => setShowDayModal(false)} />}
+      {showCategoryModal && <CategoryDetailModal category={selectedCategory} onClose={() => setShowCategoryModal(false)} />}
     </div>
   );
 };

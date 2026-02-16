@@ -1,90 +1,85 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import {
-  CheckCircle,
-  Clock,
-  Play,
-  StopCircle,
-  Timer,
-  Calendar,
-  ChevronUp,
-  ChevronDown,
-  AlertCircle,
-  Zap,
-  Heart,
-  BookOpen,
-  Briefcase,
-  Dumbbell,
-  Home,
-  Palette,
-  Users,
-  DollarSign,
-  Download,
-  Upload,
-  Target,
-  TrendingUp,
-  Award,
-  Sun,
-  Bell,
-  BellOff,
-  Grid,
-  List,
-  Filter
+  CheckCircle, Clock, Play, Pause, StopCircle, Timer,
+  Calendar, ChevronUp, ChevronDown, AlertCircle, Zap,
+  Heart, BookOpen, Briefcase, Dumbbell, Home, Palette,
+  Users, DollarSign, Download, Upload, Target, TrendingUp,
+  Award, Sun, Bell, BellOff, Grid, List, Filter, Settings,
+  Volume2, VolumeX, RotateCcw
 } from 'lucide-react';
 
-// ---------- আপনার ডিফল্ট সেটিংস এখানে পরিবর্তন করুন ----------
-const DEFAULT_GRID_COLUMNS = 3;        // আপনি চাইলে 2, 3, বা 4 সেট করতে পারেন
-const DEFAULT_VIEW_MODE = 'list';      // 'list' বা 'grid'
-const DEFAULT_FILTER_STATUS = 'all';
-const DEFAULT_FILTER_CATEGORY = 'all';
-const DEFAULT_SORT_BY = 'time';
-// ------------------------------------------------------------
+const STORAGE_KEY = 'advancedTimeBlocks';
+
+// ---------- migrate ----------
+const migrateBlock = (block) => {
+  const newBlock = { ...block };
+  if (newBlock.completed !== undefined && newBlock.completedDate && !newBlock.completedDates) {
+    newBlock.completedDates = { [newBlock.completedDate]: true };
+  }
+  if (!newBlock.completedDates) newBlock.completedDates = {};
+  delete newBlock.completed;
+  delete newBlock.completedDate;
+  return newBlock;
+};
 
 const ActivityLog = () => {
+  const getTodayDate = () => new Date().toISOString().split('T')[0];
+
+  // ---------- State ----------
   const [timeBlocks, setTimeBlocks] = useState([]);
-  const [timer, setTimer] = useState(null);
   const [activeTimer, setActiveTimer] = useState(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
-  const [viewMode, setViewMode] = useState(() => {
-    const saved = localStorage.getItem('activityLogViewMode');
-    return saved || DEFAULT_VIEW_MODE;
-  });
-  const [filterStatus, setFilterStatus] = useState(() => {
-    const saved = localStorage.getItem('filterStatus');
-    return saved || DEFAULT_FILTER_STATUS;
-  });
-  const [filterCategory, setFilterCategory] = useState(() => {
-    const saved = localStorage.getItem('filterCategory');
-    return saved || DEFAULT_FILTER_CATEGORY;
-  });
-  const [sortBy, setSortBy] = useState(() => {
-    const saved = localStorage.getItem('sortBy');
-    return saved || DEFAULT_SORT_BY;
-  });
+  const [timerPaused, setTimerPaused] = useState(false);
+  const [timerStartTime, setTimerStartTime] = useState(null);
+
+  // UI settings
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem('activityLogViewMode') || 'list');
+  const [filterStatus, setFilterStatus] = useState(() => localStorage.getItem('filterStatus') || 'all');
+  const [filterCategory, setFilterCategory] = useState(() => localStorage.getItem('filterCategory') || 'all');
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem('sortBy') || 'time');
   const [gridColumns, setGridColumns] = useState(() => {
     const saved = localStorage.getItem('activityLogGridColumns');
-    return saved ? parseInt(saved, 10) : DEFAULT_GRID_COLUMNS;
+    return saved ? parseInt(saved, 10) : 3;
   });
 
-  // Notifications state
+  // Advanced settings
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     const saved = localStorage.getItem('notificationsEnabled');
     return saved ? JSON.parse(saved) : false;
   });
-  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
+  const [autoCompleteEnabled, setAutoCompleteEnabled] = useState(() => {
+    const saved = localStorage.getItem('autoCompleteEnabled');
+    return saved ? JSON.parse(saved) : true;
+  });
+  const [soundEnabled, setSoundEnabled] = useState(() => {
+    const saved = localStorage.getItem('soundEnabled');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [defaultDuration, setDefaultDuration] = useState(() => {
+    const saved = localStorage.getItem('defaultDuration');
+    return saved ? parseInt(saved, 10) : 25;
+  });
+  const [showSettings, setShowSettings] = useState(false);
 
-  // Statistics state
+  const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
+  const audioRef = useRef(null);
+
+  // Statistics
   const [todayCompleted, setTodayCompleted] = useState(0);
   const [yesterdayCompleted, setYesterdayCompleted] = useState(0);
   const [weekCompleted, setWeekCompleted] = useState(0);
+  const [totalTimeSpentToday, setTotalTimeSpentToday] = useState(0);
+  const [totalTimeSpentWeek, setTotalTimeSpentWeek] = useState(0);
 
-  // Load time blocks from localStorage
+  // ---------- Load from storage ----------
   const loadTimeBlocks = () => {
     try {
-      const saved = localStorage.getItem('advancedTimeBlocks');
+      const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        setTimeBlocks(parsed);
+        const migrated = parsed.map(migrateBlock);
+        setTimeBlocks(migrated);
       } else {
         setTimeBlocks([]);
       }
@@ -95,92 +90,80 @@ const ActivityLog = () => {
 
   useEffect(() => {
     loadTimeBlocks();
-    const interval = setInterval(loadTimeBlocks, 2000);
-    return () => clearInterval(interval);
+    const handleStorageChange = (e) => {
+      if (e.key === STORAGE_KEY) {
+        loadTimeBlocks();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   // Persist settings
   useEffect(() => {
     localStorage.setItem('activityLogViewMode', viewMode);
   }, [viewMode]);
-
   useEffect(() => {
     localStorage.setItem('filterStatus', filterStatus);
   }, [filterStatus]);
-
   useEffect(() => {
     localStorage.setItem('filterCategory', filterCategory);
   }, [filterCategory]);
-
   useEffect(() => {
     localStorage.setItem('sortBy', sortBy);
   }, [sortBy]);
-
   useEffect(() => {
     localStorage.setItem('activityLogGridColumns', gridColumns.toString());
   }, [gridColumns]);
-
   useEffect(() => {
     localStorage.setItem('notificationsEnabled', JSON.stringify(notificationsEnabled));
   }, [notificationsEnabled]);
-
-  // Request notification permission
-  const requestNotificationPermission = async () => {
-    if (notificationPermission === 'granted') return;
-    try {
-      const perm = await Notification.requestPermission();
-      setNotificationPermission(perm);
-      if (perm === 'granted') {
-        toast.success('Notifications enabled!');
-      }
-    } catch (error) {
-      console.error('Error requesting notification permission:', error);
-    }
-  };
-
-  const toggleNotifications = () => {
-    if (!notificationsEnabled && notificationPermission !== 'granted') {
-      requestNotificationPermission().then(() => {
-        setNotificationsEnabled(true);
-      });
-    } else {
-      setNotificationsEnabled(!notificationsEnabled);
-    }
-  };
-
-  // Task reminder check
   useEffect(() => {
-    if (!notificationsEnabled || notificationPermission !== 'granted') return;
+    localStorage.setItem('autoCompleteEnabled', JSON.stringify(autoCompleteEnabled));
+  }, [autoCompleteEnabled]);
+  useEffect(() => {
+    localStorage.setItem('soundEnabled', JSON.stringify(soundEnabled));
+  }, [soundEnabled]);
+  useEffect(() => {
+    localStorage.setItem('defaultDuration', defaultDuration.toString());
+  }, [defaultDuration]);
 
-    const checkUpcomingTasks = () => {
-      const now = new Date();
-      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      
-      timeBlocks.forEach(task => {
-        if (!task.completed && task.start && task.start.trim() === currentTime) {
-          new Notification('⏰ Task Reminder', {
-            body: `It's time to start: ${task.title}`,
-            icon: '/favicon.ico'
-          });
-        }
-      });
-    };
+  // Load timer from localStorage
+  useEffect(() => {
+    const savedTimer = localStorage.getItem('activeTimer');
+    if (savedTimer) {
+      try {
+        const { id, seconds, paused, startTime } = JSON.parse(savedTimer);
+        setActiveTimer(id);
+        setTimerSeconds(seconds);
+        setTimerPaused(paused);
+        setTimerStartTime(startTime);
+      } catch (e) {}
+    }
+  }, []);
 
-    const interval = setInterval(checkUpcomingTasks, 30000);
-    return () => clearInterval(interval);
-  }, [notificationsEnabled, notificationPermission, timeBlocks]);
+  useEffect(() => {
+    if (activeTimer) {
+      localStorage.setItem('activeTimer', JSON.stringify({
+        id: activeTimer,
+        seconds: timerSeconds,
+        paused: timerPaused,
+        startTime: timerStartTime
+      }));
+    } else {
+      localStorage.removeItem('activeTimer');
+    }
+  }, [activeTimer, timerSeconds, timerPaused, timerStartTime]);
 
-  // Timer effect
+  // ---------- Timer ----------
   useEffect(() => {
     let interval;
-    if (timer && activeTimer) {
+    if (activeTimer && !timerPaused) {
       interval = setInterval(() => {
         setTimerSeconds(prev => {
-          if (prev <= 0) {
+          if (prev <= 1) {
             clearInterval(interval);
-            toast.success('Task completed! 🎉');
-            setTimer(null);
-            setActiveTimer(null);
+            handleTimerComplete();
             return 0;
           }
           return prev - 1;
@@ -188,51 +171,83 @@ const ActivityLog = () => {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [timer, activeTimer]);
+  }, [activeTimer, timerPaused]);
 
-  // Calculate statistics
+  const handleTimerComplete = () => {
+    if (autoCompleteEnabled && activeTimer) {
+      toggleComplete(activeTimer, getTodayDate(), true);
+    }
+    toast.success('Timer finished! 🎉', { duration: 5000 });
+    if (soundEnabled) playSound();
+    if (notificationsEnabled && notificationPermission === 'granted') {
+      const task = timeBlocks.find(t => t.id === activeTimer);
+      new Notification('Timer Finished', {
+        body: `Great job on "${task?.title}"!`,
+        icon: '/favicon.ico'
+      });
+    }
+    setActiveTimer(null);
+    setTimerPaused(false);
+    setTimerStartTime(null);
+  };
+
+  const startTimer = (block) => {
+    if (block.date !== getTodayDate()) {
+      toast.error('You can only start timer for today\'s tasks');
+      return;
+    }
+    if (activeTimer) {
+      stopTimer();
+    }
+    const duration = calculateDuration(block.start, block.end);
+    const totalSeconds = duration.total * 60;
+    setActiveTimer(block.id);
+    setTimerSeconds(totalSeconds);
+    setTimerPaused(false);
+    setTimerStartTime(Date.now());
+    toast.success(`Timer started for "${block.title}"`);
+  };
+
+  const pauseTimer = () => {
+    setTimerPaused(prev => !prev);
+    if (!timerPaused) {
+      setTimerStartTime(null);
+    } else {
+      setTimerStartTime(Date.now());
+    }
+  };
+
+  const stopTimer = () => {
+    setActiveTimer(null);
+    setTimerPaused(false);
+    setTimerStartTime(null);
+    toast.info('Timer stopped');
+  };
+
+  const resetTimer = () => {
+    if (!activeTimer) return;
+    const block = timeBlocks.find(t => t.id === activeTimer);
+    if (block) {
+      const duration = calculateDuration(block.start, block.end);
+      setTimerSeconds(duration.total * 60);
+      setTimerPaused(false);
+      setTimerStartTime(Date.now());
+    }
+  };
+
+  // Keyboard shortcut
   useEffect(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    const weekAgoStr = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
-
-    let todayCount = 0;
-    let yesterdayCount = 0;
-    let weekCount = 0;
-
-    timeBlocks.forEach(block => {
-      if (block.completed && block.completedDate) {
-        if (block.completedDate === todayStr) todayCount++;
-        if (block.completedDate === yesterdayStr) yesterdayCount++;
-        if (block.completedDate >= weekAgoStr) weekCount++;
+    const handleKeyDown = (e) => {
+      if (e.code === 'Space' && activeTimer) {
+        e.preventDefault();
+        pauseTimer();
       }
-    });
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTimer]);
 
-    setTodayCompleted(todayCount);
-    setYesterdayCompleted(yesterdayCount);
-    setWeekCompleted(weekCount);
-  }, [timeBlocks]);
-
-  // Constants
-  const categories = [
-    { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', borderColor: 'border-blue-200 dark:border-blue-800' },
-    { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800' },
-    { id: 'learning', label: 'Learning', icon: BookOpen, color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', borderColor: 'border-green-200 dark:border-green-800' },
-    { id: 'personal', label: 'Personal', icon: Home, color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', borderColor: 'border-purple-200 dark:border-purple-800' },
-    { id: 'social', label: 'Social', icon: Users, color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300', borderColor: 'border-pink-200 dark:border-pink-800' },
-    { id: 'fitness', label: 'Fitness', icon: Dumbbell, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', borderColor: 'border-orange-200 dark:border-orange-800' },
-    { id: 'creative', label: 'Creative', icon: Palette, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300', borderColor: 'border-cyan-200 dark:border-cyan-800' },
-    { id: 'finance', label: 'Finance', icon: DollarSign, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', borderColor: 'border-emerald-200 dark:border-emerald-800' }
-  ];
-
-  const priorities = [
-    { id: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', borderColor: 'border-gray-200 dark:border-gray-700', icon: ChevronDown },
-    { id: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', borderColor: 'border-yellow-200 dark:border-yellow-800', icon: ChevronUp },
-    { id: 'high', label: 'High', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', borderColor: 'border-orange-200 dark:border-orange-800', icon: AlertCircle },
-    { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800', icon: Zap }
-  ];
-
-  // Helper functions
+  // ---------- Helper Functions ----------
   const formatTime = (seconds) => {
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -241,55 +256,59 @@ const ActivityLog = () => {
   };
 
   const calculateDuration = (start, end) => {
-    if (!start || !end) return { total: 60, hours: 1, minutes: 0, display: '1h' };
+    if (!start || !end) {
+      return { total: defaultDuration, hours: Math.floor(defaultDuration / 60), minutes: defaultDuration % 60, display: `${defaultDuration}m` };
+    }
     const [startHour, startMin] = start.split(':').map(Number);
     const [endHour, endMin] = end.split(':').map(Number);
-    const duration = (endHour * 60 + endMin) - (startHour * 60 + startMin);
-    const total = duration || 60;
+    let duration = (endHour * 60 + endMin) - (startHour * 60 + startMin);
+    if (duration <= 0) duration = defaultDuration;
+    const total = duration;
     const hours = Math.floor(total / 60);
     const minutes = total % 60;
     return { total, hours, minutes, display: hours > 0 ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}` : `${minutes}m` };
   };
 
-  const toggleComplete = (id) => {
-    const now = new Date().toISOString().split('T')[0];
-    const updatedBlocks = timeBlocks.map(block =>
-      block.id === id
-        ? {
-            ...block,
-            completed: !block.completed,
-            completedDate: block.completed ? null : now,
-            lastModified: new Date().toISOString()
-          }
-        : block
-    );
-    localStorage.setItem('advancedTimeBlocks', JSON.stringify(updatedBlocks));
+  const isTaskCompletedOnDate = (task, date) => {
+    return task.completedDates?.[date] || false;
+  };
+
+  const toggleComplete = (id, date = getTodayDate(), silent = false) => {
+    const updatedBlocks = timeBlocks.map(block => {
+      if (block.id !== id) return block;
+      const newCompletedDates = { ...(block.completedDates || {}) };
+      if (newCompletedDates[date]) {
+        delete newCompletedDates[date];
+      } else {
+        newCompletedDates[date] = true;
+      }
+      return {
+        ...block,
+        completedDates: newCompletedDates,
+        lastModified: new Date().toISOString()
+      };
+    });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedBlocks));
     setTimeBlocks(updatedBlocks);
-    const task = updatedBlocks.find(b => b.id === id);
-    toast.success(task.completed ? 'Task completed! 🎉' : 'Task uncompleted');
-  };
-
-  const startTimer = (block) => {
-    const duration = calculateDuration(block.start, block.end);
-    const totalSeconds = duration.total * 60;
-    setActiveTimer(block.id);
-    setTimerSeconds(totalSeconds);
-    setTimer(true);
-    toast.success(`Timer started for "${block.title}"`);
-  };
-
-  const stopTimer = () => {
-    setTimer(false);
-    setActiveTimer(null);
-    toast.info('Timer stopped');
+    if (!silent) {
+      const task = updatedBlocks.find(b => b.id === id);
+      const isCompletedNow = task.completedDates?.[date] || false;
+      toast.success(isCompletedNow ? 'Task completed! 🎉' : 'Task uncompleted');
+    }
   };
 
   // Filtering and sorting
   const getFilteredTasks = () => {
+    const todayStr = getTodayDate();
     let filtered = timeBlocks;
-    if (filterStatus === 'completed') filtered = filtered.filter(t => t.completed);
-    else if (filterStatus === 'pending') filtered = filtered.filter(t => !t.completed);
-    if (filterCategory !== 'all') filtered = filtered.filter(t => t.category === filterCategory);
+    if (filterStatus === 'completed') {
+      filtered = filtered.filter(t => t.completedDates?.[todayStr]);
+    } else if (filterStatus === 'pending') {
+      filtered = filtered.filter(t => !t.completedDates?.[todayStr]);
+    }
+    if (filterCategory !== 'all') {
+      filtered = filtered.filter(t => t.category === filterCategory);
+    }
     return filtered;
   };
 
@@ -309,18 +328,64 @@ const ActivityLog = () => {
   const filteredTasks = getFilteredTasks();
   const displayedTasks = getSortedTasks(filteredTasks);
 
-  // Stats
+  // Statistics calculation
+  useEffect(() => {
+    const todayStr = getTodayDate();
+    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
+    const weekAgoStr = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+
+    let todayCount = 0, yesterdayCount = 0, weekCount = 0;
+    let todayMinutes = 0, weekMinutes = 0;
+
+    timeBlocks.forEach(block => {
+      const completions = block.completedDates || {};
+      if (completions[todayStr]) {
+        todayCount++;
+        const dur = calculateDuration(block.start, block.end);
+        todayMinutes += dur.total;
+      }
+      if (completions[yesterdayStr]) {
+        yesterdayCount++;
+      }
+      const weekCompletions = Object.keys(completions).filter(d => d >= weekAgoStr);
+      if (weekCompletions.length > 0) {
+        weekCount += weekCompletions.length;
+        weekCompletions.forEach(d => {
+          const dur = calculateDuration(block.start, block.end);
+          weekMinutes += dur.total;
+        });
+      }
+    });
+
+    setTodayCompleted(todayCount);
+    setYesterdayCompleted(yesterdayCount);
+    setWeekCompleted(weekCount);
+    setTotalTimeSpentToday(todayMinutes);
+    setTotalTimeSpentWeek(weekMinutes);
+  }, [timeBlocks]);
+
+  // Constants (categories, priorities)
+  const categories = [
+    { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', borderColor: 'border-blue-200 dark:border-blue-800' },
+    { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800' },
+    { id: 'learning', label: 'Learning', icon: BookOpen, color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300', borderColor: 'border-green-200 dark:border-green-800' },
+    { id: 'personal', label: 'Personal', icon: Home, color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300', borderColor: 'border-purple-200 dark:border-purple-800' },
+    { id: 'social', label: 'Social', icon: Users, color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-300', borderColor: 'border-pink-200 dark:border-pink-800' },
+    { id: 'fitness', label: 'Fitness', icon: Dumbbell, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', borderColor: 'border-orange-200 dark:border-orange-800' },
+    { id: 'creative', label: 'Creative', icon: Palette, color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300', borderColor: 'border-cyan-200 dark:border-cyan-800' },
+    { id: 'finance', label: 'Finance', icon: DollarSign, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300', borderColor: 'border-emerald-200 dark:border-emerald-800' }
+  ];
+
+  const priorities = [
+    { id: 'low', label: 'Low', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300', borderColor: 'border-gray-200 dark:border-gray-700', icon: ChevronDown },
+    { id: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300', borderColor: 'border-yellow-200 dark:border-yellow-800', icon: ChevronUp },
+    { id: 'high', label: 'High', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300', borderColor: 'border-orange-200 dark:border-orange-800', icon: AlertCircle },
+    { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800', icon: Zap }
+  ];
+
   const total = timeBlocks.length;
-  const completed = timeBlocks.filter(t => t.completed).length;
-  const pending = total - completed;
-  const completionRate = total === 0 ? 0 : Math.round((completed / total) * 100);
-  
-  const totalEstimatedMinutes = timeBlocks.reduce((sum, task) => {
-    const duration = calculateDuration(task.start, task.end);
-    return sum + duration.total;
-  }, 0);
-  const totalEstimatedHours = Math.floor(totalEstimatedMinutes / 60);
-  const totalEstimatedRemainMinutes = totalEstimatedMinutes % 60;
+  const pending = timeBlocks.filter(t => !t.completedDates?.[getTodayDate()]).length;
+  const completionRate = total === 0 ? 0 : Math.round(((total - pending) / total) * 100);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -330,12 +395,12 @@ const ActivityLog = () => {
   };
 
   const exportData = () => {
-    const data = { version: '2.0', exportDate: new Date().toISOString(), timeBlocks };
+    const data = { version: '3.1', exportDate: new Date().toISOString(), timeBlocks };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `time-blocks-${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `time-blocks-${getTodayDate()}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Data exported successfully');
@@ -350,9 +415,10 @@ const ActivityLog = () => {
         const data = JSON.parse(e.target.result);
         if (data.timeBlocks) {
           if (window.confirm(`Import ${data.timeBlocks.length} time blocks?`)) {
-            localStorage.setItem('advancedTimeBlocks', JSON.stringify(data.timeBlocks));
-            setTimeBlocks(data.timeBlocks);
-            toast.success(`Imported ${data.timeBlocks.length} time blocks`);
+            const migrated = data.timeBlocks.map(migrateBlock);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+            setTimeBlocks(migrated);
+            toast.success(`Imported ${migrated.length} time blocks`);
           }
         }
       } catch (error) {
@@ -362,6 +428,61 @@ const ActivityLog = () => {
     reader.readAsText(file);
   };
 
+  const todayStr = getTodayDate();
+
+  // ---------- Notifications ----------
+  const requestNotificationPermission = async () => {
+    if (notificationPermission === 'granted') return;
+    try {
+      const perm = await Notification.requestPermission();
+      setNotificationPermission(perm);
+      if (perm === 'granted') toast.success('Notifications enabled!');
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+    }
+  };
+
+  const toggleNotifications = () => {
+    if (!notificationsEnabled && notificationPermission !== 'granted') {
+      requestNotificationPermission().then(() => {
+        setNotificationsEnabled(true);
+      });
+    } else {
+      setNotificationsEnabled(!notificationsEnabled);
+    }
+  };
+
+  const playSound = () => {
+    if (!soundEnabled) return;
+    if (!audioRef.current) {
+      audioRef.current = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
+    }
+    audioRef.current.play().catch(e => console.log('Audio play failed:', e));
+  };
+
+  // Task reminder
+  useEffect(() => {
+    if (!notificationsEnabled || notificationPermission !== 'granted') return;
+    const checkUpcomingTasks = () => {
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const todayStr = getTodayDate();
+
+      timeBlocks.forEach(task => {
+        const isCompletedToday = task.completedDates?.[todayStr] || false;
+        if (!isCompletedToday && task.date === todayStr && task.start && task.start.trim() === currentTime) {
+          new Notification('⏰ Task Reminder', {
+            body: `It's time to start: ${task.title}`,
+            icon: '/favicon.ico'
+          });
+        }
+      });
+    };
+    const interval = setInterval(checkUpcomingTasks, 30000);
+    return () => clearInterval(interval);
+  }, [notificationsEnabled, notificationPermission, timeBlocks]);
+
+  // ---------- Render ----------
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -377,7 +498,7 @@ const ActivityLog = () => {
             {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
             onClick={toggleNotifications}
             className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all ${
@@ -389,6 +510,14 @@ const ActivityLog = () => {
           >
             {notificationsEnabled ? <Bell size={16} /> : <BellOff size={16} />}
             {notificationsEnabled ? 'On' : 'Off'}
+          </button>
+
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+            title="Settings"
+          >
+            <Settings size={16} /> Settings
           </button>
 
           <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
@@ -436,6 +565,49 @@ const ActivityLog = () => {
           </label>
         </div>
       </div>
+
+      {/* Settings Panel */}
+      {showSettings && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <Settings size={18} /> Timer Settings
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={autoCompleteEnabled}
+                onChange={(e) => setAutoCompleteEnabled(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              Auto-mark task complete when timer ends
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={soundEnabled}
+                onChange={(e) => setSoundEnabled(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              Play sound when timer ends
+            </label>
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+              <span>Default duration (minutes):</span>
+              <input
+                type="number"
+                min="1"
+                max="180"
+                value={defaultDuration}
+                onChange={(e) => setDefaultDuration(parseInt(e.target.value) || 25)}
+                className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+            ⏱️ Press <kbd className="px-1 py-0.5 bg-gray-200 dark:bg-gray-700 rounded">Space</kbd> to pause/resume timer.
+          </p>
+        </div>
+      )}
 
       {/* Filters and Sorting */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-200 dark:border-gray-700">
@@ -501,7 +673,7 @@ const ActivityLog = () => {
       </div>
 
       {/* Live Timer */}
-      {timer && activeTimer && (
+      {activeTimer && (
         <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 rounded-2xl p-6 text-white shadow-2xl border border-white/20 backdrop-blur-sm">
           <div className="flex flex-col md:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4">
@@ -516,20 +688,49 @@ const ActivityLog = () => {
                 <div className="font-mono text-3xl md:text-4xl font-bold mt-1">
                   {formatTime(timerSeconds)}
                 </div>
+                {(() => {
+                  const task = timeBlocks.find(t => t.id === activeTimer);
+                  const totalSecs = calculateDuration(task?.start, task?.end).total * 60;
+                  const percent = ((totalSecs - timerSeconds) / totalSecs) * 100;
+                  return (
+                    <div className="w-64 h-2 bg-white/30 rounded-full mt-2">
+                      <div
+                        className="h-full bg-white rounded-full transition-all duration-1000"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  );
+                })()}
               </div>
             </div>
-            <button
-              onClick={stopTimer}
-              className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30"
-            >
-              <StopCircle size={20} /> Stop Timer
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={pauseTimer}
+                className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30"
+              >
+                {timerPaused ? <Play size={20} /> : <Pause size={20} />}
+                {timerPaused ? 'Resume' : 'Pause'}
+              </button>
+              <button
+                onClick={resetTimer}
+                className="px-4 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30"
+                title="Reset timer"
+              >
+                <RotateCcw size={20} />
+              </button>
+              <button
+                onClick={stopTimer}
+                className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30"
+              >
+                <StopCircle size={20} /> Stop
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Statistics Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
             <div>
@@ -555,11 +756,13 @@ const ActivityLog = () => {
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Completed Yesterday</p>
-              <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mt-1">{yesterdayCompleted}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Time Today</p>
+              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+                {Math.floor(totalTimeSpentToday / 60)}h {totalTimeSpentToday % 60}m
+              </p>
             </div>
             <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
-              <Calendar className="text-purple-600 dark:text-purple-400" size={24} />
+              <Clock className="text-purple-600 dark:text-purple-400" size={24} />
             </div>
           </div>
         </div>
@@ -577,9 +780,9 @@ const ActivityLog = () => {
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Daily Avg (Week)</p>
-              <p className="text-3xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                {weekCompleted > 0 ? (weekCompleted / 7).toFixed(1) : '0'}
+              <p className="text-sm text-gray-500 dark:text-gray-400">Week Time</p>
+              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+                {Math.floor(totalTimeSpentWeek / 60)}h {totalTimeSpentWeek % 60}m
               </p>
             </div>
             <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
@@ -720,13 +923,14 @@ const ActivityLog = () => {
               const PriorityIcon = priority?.icon || ChevronUp;
               const isActiveTimer = activeTimer === task.id;
               const duration = calculateDuration(task.start, task.end);
-              const isOverdue = !task.completed && task.start && new Date(`${new Date().toISOString().split('T')[0]}T${task.start}`) < new Date();
+              const isCompletedToday = task.completedDates?.[todayStr] || false;
+              const isOverdue = !isCompletedToday && task.date === todayStr && task.start && new Date(`${todayStr}T${task.start}`) < new Date();
 
               return (
                 <div
                   key={task.id}
                   className={`group relative bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg border transition-all duration-300 hover:shadow-xl ${
-                    task.completed
+                    isCompletedToday
                       ? 'border-green-200 dark:border-green-800/50 bg-gradient-to-r from-green-50/50 to-transparent dark:from-green-900/10'
                       : isOverdue
                       ? 'border-red-200 dark:border-red-800/50 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-900/5'
@@ -745,14 +949,14 @@ const ActivityLog = () => {
                   )}
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
                     <button
-                      onClick={() => toggleComplete(task.id)}
+                      onClick={() => toggleComplete(task.id, todayStr)}
                       className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
-                        task.completed
+                        isCompletedToday
                           ? 'bg-green-500 border-green-500 text-white shadow-md'
                           : 'border-gray-300 dark:border-gray-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'
                       }`}
                     >
-                      {task.completed && <CheckCircle size={16} />}
+                      {isCompletedToday && <CheckCircle size={16} />}
                     </button>
                     <div className="flex-1">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
@@ -760,7 +964,7 @@ const ActivityLog = () => {
                           <div className="flex items-center gap-2 flex-wrap">
                             <h4
                               className={`text-lg font-semibold ${
-                                task.completed
+                                isCompletedToday
                                   ? 'line-through text-gray-500 dark:text-gray-400'
                                   : 'text-gray-900 dark:text-white'
                               }`}
@@ -781,7 +985,7 @@ const ActivityLog = () => {
                                 <CategoryIcon size={12} /> {category.label}
                               </span>
                             )}
-                            {isOverdue && !task.completed && (
+                            {isOverdue && !isCompletedToday && (
                               <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
                                 <AlertCircle size={12} /> Overdue
                               </span>
@@ -820,7 +1024,13 @@ const ActivityLog = () => {
                           {!isActiveTimer ? (
                             <button
                               onClick={() => startTimer(task)}
-                              className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+                              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all ${
+                                task.date === todayStr
+                                  ? 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white'
+                                  : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                              }`}
+                              disabled={task.date !== todayStr}
+                              title={task.date === todayStr ? 'Start Timer' : 'You can only start timer for today\'s tasks'}
                             >
                               <Play size={16} /> Start Timer
                             </button>
@@ -830,6 +1040,13 @@ const ActivityLog = () => {
                                 <Timer size={16} className="animate-pulse" />
                                 <span className="font-mono">{formatTime(timerSeconds)}</span>
                               </div>
+                              <button
+                                onClick={pauseTimer}
+                                className="p-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded-xl hover:bg-yellow-200 transition-all"
+                                title={timerPaused ? 'Resume' : 'Pause'}
+                              >
+                                {timerPaused ? <Play size={20} /> : <Pause size={20} />}
+                              </button>
                               <button
                                 onClick={stopTimer}
                                 className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-all"
@@ -848,7 +1065,7 @@ const ActivityLog = () => {
             })}
           </div>
         ) : (
-          // Grid View with dynamic columns
+          // Grid View
           <div
             className="grid gap-4"
             style={{
@@ -862,13 +1079,14 @@ const ActivityLog = () => {
               const PriorityIcon = priority?.icon || ChevronUp;
               const isActiveTimer = activeTimer === task.id;
               const duration = calculateDuration(task.start, task.end);
-              const isOverdue = !task.completed && task.start && new Date(`${new Date().toISOString().split('T')[0]}T${task.start}`) < new Date();
+              const isCompletedToday = task.completedDates?.[todayStr] || false;
+              const isOverdue = !isCompletedToday && task.date === todayStr && task.start && new Date(`${todayStr}T${task.start}`) < new Date();
 
               return (
                 <div
                   key={task.id}
                   className={`group relative bg-white dark:bg-gray-800 rounded-xl p-4 shadow-md border transition-all duration-200 hover:shadow-lg ${
-                    task.completed
+                    isCompletedToday
                       ? 'border-green-200 dark:border-green-800/50 bg-gradient-to-r from-green-50/50 to-transparent dark:from-green-900/10'
                       : isOverdue
                       ? 'border-red-200 dark:border-red-800/50 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-900/5'
@@ -888,14 +1106,14 @@ const ActivityLog = () => {
                   <div className="flex flex-col h-full">
                     <div className="flex items-start justify-between mb-2">
                       <button
-                        onClick={() => toggleComplete(task.id)}
+                        onClick={() => toggleComplete(task.id, todayStr)}
                         className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                          task.completed
+                          isCompletedToday
                             ? 'bg-green-500 border-green-500 text-white shadow-md'
                             : 'border-gray-300 dark:border-gray-600 hover:border-green-500'
                         }`}
                       >
-                        {task.completed && <CheckCircle size={14} />}
+                        {isCompletedToday && <CheckCircle size={14} />}
                       </button>
                       <div className="flex gap-1">
                         {priority && (
@@ -916,7 +1134,7 @@ const ActivityLog = () => {
                     </div>
                     <h4
                       className={`text-base font-semibold mb-1 ${
-                        task.completed ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'
+                        isCompletedToday ? 'line-through text-gray-400 dark:text-gray-500' : 'text-gray-900 dark:text-white'
                       }`}
                     >
                       {task.title}
@@ -928,7 +1146,7 @@ const ActivityLog = () => {
                       </span>
                       {task.start && task.end && <span className="text-gray-400 dark:text-gray-500">({duration.display})</span>}
                     </div>
-                    {isOverdue && !task.completed && (
+                    {isOverdue && !isCompletedToday && (
                       <div className="mb-2 text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
                         <AlertCircle size={12} /> Overdue
                       </div>
@@ -937,7 +1155,13 @@ const ActivityLog = () => {
                       {!isActiveTimer ? (
                         <button
                           onClick={() => startTimer(task)}
-                          className="px-3 py-1 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition-all"
+                          className={`px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition-all ${
+                            task.date === todayStr
+                              ? 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white'
+                              : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                          }`}
+                          disabled={task.date !== todayStr}
+                          title={task.date === todayStr ? 'Start' : 'Today only'}
                         >
                           <Play size={12} /> Start
                         </button>
@@ -947,6 +1171,13 @@ const ActivityLog = () => {
                             <Timer size={12} className="animate-pulse" />
                             <span className="font-mono text-xs">{formatTime(timerSeconds)}</span>
                           </div>
+                          <button
+                            onClick={pauseTimer}
+                            className="p-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded hover:bg-yellow-200"
+                            title={timerPaused ? 'Resume' : 'Pause'}
+                          >
+                            {timerPaused ? <Play size={14} /> : <Pause size={14} />}
+                          </button>
                           <button
                             onClick={stopTimer}
                             className="p-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200"
@@ -992,9 +1223,7 @@ const ActivityLog = () => {
             )}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-3">
-            Estimated total focus time:{' '}
-            {totalEstimatedHours > 0 ? `${totalEstimatedHours}h ` : ''}
-            {totalEstimatedRemainMinutes > 0 ? `${totalEstimatedRemainMinutes}m` : ''}
+            Total focus time this week: {Math.floor(totalTimeSpentWeek / 60)}h {totalTimeSpentWeek % 60}m
           </p>
         </div>
       )}
