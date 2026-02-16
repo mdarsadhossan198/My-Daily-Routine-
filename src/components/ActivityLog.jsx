@@ -6,7 +6,7 @@ import {
   Heart, BookOpen, Briefcase, Dumbbell, Home, Palette,
   Users, DollarSign, Download, Upload, Target, TrendingUp,
   Award, Sun, Bell, BellOff, Grid, List, Filter, Settings,
-  Volume2, VolumeX, RotateCcw
+  RotateCcw
 } from 'lucide-react';
 
 const STORAGE_KEY = 'advancedTimeBlocks';
@@ -297,10 +297,28 @@ const ActivityLog = () => {
     }
   };
 
-  // Filtering and sorting
-  const getFilteredTasks = () => {
+  // ---------- Filter today's tasks ----------
+  const getTodayTasks = () => {
     const todayStr = getTodayDate();
-    let filtered = timeBlocks;
+    const dayIndexToId = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+    const todayDayAbbr = dayIndexToId[new Date(todayStr).getDay()];
+
+    return timeBlocks.filter(block => {
+      // One-time task
+      if (block.date === todayStr) return true;
+      // Recurring task (repeats array)
+      if (block.repeats && block.repeats.includes(todayDayAbbr)) return true;
+      // scheduledDay (if used)
+      if (block.scheduledDay === todayDayAbbr) return true;
+      return false;
+    });
+  };
+
+  const getFilteredTasks = () => {
+    const todayTasks = getTodayTasks();
+    const todayStr = getTodayDate();
+    let filtered = todayTasks;
+
     if (filterStatus === 'completed') {
       filtered = filtered.filter(t => t.completedDates?.[todayStr]);
     } else if (filterStatus === 'pending') {
@@ -325,10 +343,11 @@ const ActivityLog = () => {
     return sorted;
   };
 
+  const todayTasks = getTodayTasks();
   const filteredTasks = getFilteredTasks();
   const displayedTasks = getSortedTasks(filteredTasks);
 
-  // Statistics calculation
+  // Statistics calculation (only for today)
   useEffect(() => {
     const todayStr = getTodayDate();
     const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -383,8 +402,8 @@ const ActivityLog = () => {
     { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800', icon: Zap }
   ];
 
-  const total = timeBlocks.length;
-  const pending = timeBlocks.filter(t => !t.completedDates?.[getTodayDate()]).length;
+  const total = todayTasks.length; // total today's tasks
+  const pending = todayTasks.filter(t => !t.completedDates?.[getTodayDate()]).length;
   const completionRate = total === 0 ? 0 : Math.round(((total - pending) / total) * 100);
 
   const getGreeting = () => {
@@ -485,7 +504,7 @@ const ActivityLog = () => {
   // ---------- Render ----------
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header (same as before) */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
@@ -499,6 +518,7 @@ const ActivityLog = () => {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {/* Notifications toggle */}
           <button
             onClick={toggleNotifications}
             className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all ${
@@ -729,12 +749,12 @@ const ActivityLog = () => {
         </div>
       )}
 
-      {/* Statistics Cards */}
+      {/* Statistics Cards (based on today's tasks) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Tasks</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Today's Tasks</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{total}</p>
             </div>
             <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
@@ -860,18 +880,18 @@ const ActivityLog = () => {
               <div>
                 <h3 className="font-semibold text-gray-900 dark:text-white">Today's Progress</h3>
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {todayCompleted} of {total} tasks completed • {Math.round((todayCompleted / total) * 100)}% done
+                  {todayCompleted} of {total} tasks completed • {completionRate}% done
                 </p>
               </div>
             </div>
             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {Math.round((todayCompleted / total) * 100)}%
+              {completionRate}%
             </div>
           </div>
           <div className="mt-4 h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
-              style={{ width: `${(todayCompleted / total) * 100}%` }}
+              style={{ width: `${completionRate}%` }}
             />
           </div>
           <div className="mt-4 flex flex-wrap gap-3 text-sm">
@@ -914,7 +934,7 @@ const ActivityLog = () => {
             </p>
           </div>
         ) : viewMode === 'list' ? (
-          // List View
+          // List View (same as before, but using displayedTasks)
           <div className="grid grid-cols-1 gap-4">
             {displayedTasks.map(task => {
               const category = categories.find(c => c.id === task.category);
@@ -1065,7 +1085,7 @@ const ActivityLog = () => {
             })}
           </div>
         ) : (
-          // Grid View
+          // Grid View (same as before, but using displayedTasks)
           <div
             className="grid gap-4"
             style={{
