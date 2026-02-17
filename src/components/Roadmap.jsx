@@ -82,7 +82,7 @@ import {
 } from 'lucide-react';
 
 // ----------------------------------------------------------------------
-// হেল্পার ফাংশন: কুইজ জেনারেটর (সিম্পল)
+// Helper: Quiz Generator
 // ----------------------------------------------------------------------
 const generateQuiz = (topicTitle, resources) => {
   const words = (topicTitle + ' ' + resources).split(/[ ,.]+/).filter(w => w.length > 3);
@@ -107,7 +107,7 @@ const generateQuiz = (topicTitle, resources) => {
 };
 
 // ----------------------------------------------------------------------
-// কুইজ মডাল কম্পোনেন্ট
+// Quiz Modal  
 // ----------------------------------------------------------------------
 const QuizModal = ({ topic, onClose }) => {
   const [questions, setQuestions] = useState([]);
@@ -207,7 +207,7 @@ const QuizModal = ({ topic, onClose }) => {
 };
 
 // ----------------------------------------------------------------------
-// ভিডিও লিংক মডাল
+// Video Links Modal
 // ----------------------------------------------------------------------
 const VideoLinksModal = ({ topic, onClose }) => {
   return (
@@ -247,112 +247,7 @@ const VideoLinksModal = ({ topic, onClose }) => {
 };
 
 // ----------------------------------------------------------------------
-// টপিক কার্ড (নতুন ফিচার সহ)
-// ----------------------------------------------------------------------
-const TopicCard = ({ topic, sectionId, onToggle, onSaveNote, onBookmark, areDependenciesMet }) => {
-  const [showVideoModal, setShowVideoModal] = useState(false);
-  const [showQuizModal, setShowQuizModal] = useState(false);
-
-  const handleVideoClick = (e) => {
-    e.stopPropagation();
-    setShowVideoModal(true);
-  };
-
-  const handleQuizClick = (e) => {
-    e.stopPropagation();
-    setShowQuizModal(true);
-  };
-
-  const handleBookmarkClick = (e) => {
-    e.stopPropagation();
-    onBookmark(sectionId, topic.id);
-  };
-
-  return (
-    <>
-      <div className={`flex items-start gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border ${
-        topic.completed ? 'border-green-200 dark:border-green-800' : 'border-gray-100 dark:border-gray-700'
-      } hover:shadow-md transition-all ${!topic.completed && !areDependenciesMet ? 'opacity-60' : ''}`}>
-        <button
-          onClick={onToggle}
-          disabled={!topic.completed && !areDependenciesMet}
-          className="flex-shrink-0 mt-0.5 disabled:cursor-not-allowed"
-        >
-          {topic.completed ? (
-            <CheckCircle className="w-5 h-5 text-green-500" />
-          ) : !areDependenciesMet ? (
-            <Lock className="w-5 h-5 text-gray-400" />
-          ) : (
-            <Circle className="w-5 h-5 text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500" />
-          )}
-        </button>
-        <div className="flex-1">
-          <div className="flex items-start justify-between">
-            <h4 className={`font-medium ${topic.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
-              {topic.title}
-            </h4>
-            <div className="flex items-center gap-1">
-              <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
-                {topic.time} hr
-              </span>
-              {/* বুকমার্ক আইকন */}
-              <button
-                onClick={handleBookmarkClick}
-                className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                title={topic.bookmarked ? 'Remove bookmark' : 'Bookmark'}
-              >
-                {topic.bookmarked ? (
-                  <BookmarkCheck size={16} className="text-indigo-600" />
-                ) : (
-                  <BookmarkPlus size={16} className="text-gray-500" />
-                )}
-              </button>
-              {/* ভিডিও আইকন (যদি ভিডিও লিংক থাকে) */}
-              {topic.videoLinks && topic.videoLinks.length > 0 && (
-                <button
-                  onClick={handleVideoClick}
-                  className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                  title="View resources"
-                >
-                  <Youtube size={16} className="text-red-500" />
-                </button>
-              )}
-              {/* কুইজ আইকন (যদি টপিক কমপ্লিট হয়) */}
-              {topic.completed && (
-                <button
-                  onClick={handleQuizClick}
-                  className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-                  title="Take quiz"
-                >
-                  <HelpCircle size={16} className="text-green-600" />
-                </button>
-              )}
-            </div>
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-            {topic.resources}
-          </p>
-          <NoteEditor topic={topic} sectionId={sectionId} onSave={onSaveNote} />
-          {topic.dependsOn && topic.dependsOn.length > 0 && !topic.completed && (
-            <div className="mt-1 text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1">
-              <GitBranch size={10} />
-              Depends on: {topic.dependsOn.join(', ')}
-            </div>
-          )}
-        </div>
-      </div>
-      {showVideoModal && (
-        <VideoLinksModal topic={topic} onClose={() => setShowVideoModal(false)} />
-      )}
-      {showQuizModal && (
-        <QuizModal topic={topic} onClose={() => setShowQuizModal(false)} />
-      )}
-    </>
-  );
-};
-
-// ----------------------------------------------------------------------
-// নোট এডিটর
+// Note Editor
 // ----------------------------------------------------------------------
 const NoteEditor = ({ topic, sectionId, onSave }) => {
   const [note, setNote] = useState(topic.notes || '');
@@ -398,7 +293,116 @@ const NoteEditor = ({ topic, sectionId, onSave }) => {
 };
 
 // ----------------------------------------------------------------------
-// টাইমলাইন ভিউ
+// Topic Card (with improved icon visibility and descriptions)
+// ----------------------------------------------------------------------
+const TopicCard = ({ topic, sectionId, onToggle, onSaveNote, onBookmark, areDependenciesMet }) => {
+  const [showVideoModal, setShowVideoModal] = useState(false);
+  const [showQuizModal, setShowQuizModal] = useState(false);
+
+  const handleVideoClick = (e) => {
+    e.stopPropagation();
+    setShowVideoModal(true);
+  };
+
+  const handleQuizClick = (e) => {
+    e.stopPropagation();
+    setShowQuizModal(true);
+  };
+
+  const handleBookmarkClick = (e) => {
+    e.stopPropagation();
+    onBookmark(sectionId, topic.id);
+  };
+
+  return (
+    <>
+      <div
+        id={`topic-${topic.id}`}
+        className={`flex items-start gap-3 p-4 bg-white dark:bg-gray-800 rounded-xl shadow-sm border ${
+          topic.completed ? 'border-green-200 dark:border-green-800' : 'border-gray-100 dark:border-gray-700'
+        } hover:shadow-md transition-all ${!topic.completed && !areDependenciesMet ? 'opacity-60' : ''}`}
+      >
+        <button
+          onClick={onToggle}
+          disabled={!topic.completed && !areDependenciesMet}
+          className="flex-shrink-0 mt-0.5 disabled:cursor-not-allowed"
+        >
+          {topic.completed ? (
+            <CheckCircle className="w-5 h-5 text-green-500" />
+          ) : !areDependenciesMet ? (
+            <Lock className="w-5 h-5 text-gray-400" />
+          ) : (
+            <Circle className="w-5 h-5 text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500" />
+          )}
+        </button>
+        <div className="flex-1">
+          <div className="flex items-start justify-between">
+            <h4 className={`font-medium ${topic.completed ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-white'}`}>
+              {topic.title}
+            </h4>
+            <div className="flex items-center gap-1">
+              <span className="text-xs px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
+                {topic.time} hr
+              </span>
+              {/* Bookmark icon with larger hit area */}
+              <button
+                onClick={handleBookmarkClick}
+                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                title={topic.bookmarked ? 'Remove bookmark' : 'Bookmark'}
+              >
+                {topic.bookmarked ? (
+                  <BookmarkCheck size={18} className="text-indigo-600" />
+                ) : (
+                  <BookmarkPlus size={18} className="text-gray-500" />
+                )}
+              </button>
+              {/* Video icon (always visible if links exist) */}
+              {topic.videoLinks && topic.videoLinks.length > 0 && (
+                <button
+                  onClick={handleVideoClick}
+                  className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                  title="View video resources"
+                >
+                  <Youtube size={18} className="text-red-500" />
+                </button>
+              )}
+              {/* Quiz icon (if topic completed) */}
+              {topic.completed && (
+                <button
+                  onClick={handleQuizClick}
+                  className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                  title="Take quiz"
+                >
+                  <HelpCircle size={18} className="text-green-600" />
+                </button>
+              )}
+            </div>
+          </div>
+          {/* Description from resources */}
+          <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+            {topic.resources}
+          </p>
+          <NoteEditor topic={topic} sectionId={sectionId} onSave={onSaveNote} />
+          {topic.dependsOn && topic.dependsOn.length > 0 && !topic.completed && (
+            <div className="mt-1 text-xs text-gray-500 dark:text-gray-500 flex items-center gap-1">
+              <GitBranch size={10} />
+              Depends on: {topic.dependsOn.join(', ')}
+            </div>
+          )}
+        </div>
+      </div>
+      {showVideoModal && (
+        <VideoLinksModal topic={topic} onClose={() => setShowVideoModal(false)} />
+      )}
+      {showQuizModal && (
+        <QuizModal topic={topic} onClose={() => setShowQuizModal(false)} />
+      )}
+    </>
+  );
+};
+
+// ----------------------------------------------------------------------
+// Timeline View
 // ----------------------------------------------------------------------
 const TimelineView = ({ sections }) => {
   const completedTopics = useMemo(() => {
@@ -454,7 +458,7 @@ const TimelineView = ({ sections }) => {
 };
 
 // ----------------------------------------------------------------------
-// রিমাইন্ডার সেটিংস
+// Reminder Settings
 // ----------------------------------------------------------------------
 const ReminderSettings = ({ dailyStudyHours }) => {
   const [permission, setPermission] = useState(Notification.permission);
@@ -555,7 +559,7 @@ const ReminderSettings = ({ dailyStudyHours }) => {
 };
 
 // ----------------------------------------------------------------------
-// প্রোজেক্ট সুপারিশ
+// Project Suggestions
 // ----------------------------------------------------------------------
 const ProjectSuggestions = ({ sections, projects }) => {
   const completedTopicIds = useMemo(() => {
@@ -599,7 +603,7 @@ const ProjectSuggestions = ({ sections, projects }) => {
 };
 
 // ----------------------------------------------------------------------
-// ব্যাজ কম্পোনেন্ট
+// Badge Component
 // ----------------------------------------------------------------------
 const Badge = ({ title, earned }) => (
   <div className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${
@@ -611,7 +615,7 @@ const Badge = ({ title, earned }) => (
 );
 
 // ----------------------------------------------------------------------
-// সার্টিফিকেট কম্পোনেন্ট
+// Certificate Modal
 // ----------------------------------------------------------------------
 const CertificateModal = ({ trackTitle, onClose }) => {
   const userName = localStorage.getItem('userName') || 'Arsad';
@@ -664,7 +668,7 @@ const CertificateModal = ({ trackTitle, onClose }) => {
 };
 
 // ----------------------------------------------------------------------
-// সেফ আইকন
+// Safe Icon (fallback)
 // ----------------------------------------------------------------------
 const SafeIcon = ({ icon: Icon, className }) => {
   const Component = Icon && typeof Icon === 'function' ? Icon : BookOpen;
@@ -672,7 +676,7 @@ const SafeIcon = ({ icon: Icon, className }) => {
 };
 
 // ----------------------------------------------------------------------
-// ওয়েব ডেভেলপমেন্ট ডেটা (ভিডিও লিংক সহ)
+// Web Development Data (with video links)
 // ----------------------------------------------------------------------
 const webDevData = {
   id: 'web',
@@ -971,7 +975,7 @@ const webDevData = {
   ]
 };
 
-// ওয়েব প্রোজেক্ট
+// Web Projects
 const webProjects = [
   {
     id: 'static-site',
@@ -1013,7 +1017,7 @@ const webProjects = [
 ];
 
 // ----------------------------------------------------------------------
-// ইথিক্যাল হ্যাকিং ডেটা (ভিডিও লিংক সহ)
+// Ethical Hacking Data (with video links)
 // ----------------------------------------------------------------------
 const ethicalHackingData = {
   id: 'ethical',
@@ -1195,7 +1199,7 @@ const ethicalProjects = [
 ];
 
 // ----------------------------------------------------------------------
-// মেশিন লার্নিং ডেটা (ভিডিও লিংক সহ)
+// Machine Learning Data (with video links)
 // ----------------------------------------------------------------------
 const machineLearningData = {
   id: 'ml',
@@ -1361,7 +1365,7 @@ const mlProjects = [
 ];
 
 // ----------------------------------------------------------------------
-// AI (Artificial Intelligence) ডেটা (ভিডিও লিংক সহ)
+// AI (Artificial Intelligence) Data (with video links)
 // ----------------------------------------------------------------------
 const aiData = {
   id: 'ai',
@@ -1555,7 +1559,7 @@ const aiProjects = [
 ];
 
 // ----------------------------------------------------------------------
-// ডিজিটাল মার্কেটিং ডেটা (ভিডিও লিংক সহ)
+// Digital Marketing Data (with video links)
 // ----------------------------------------------------------------------
 const digitalMarketingData = {
   id: 'dm',
@@ -1792,7 +1796,7 @@ const dmProjects = [
 ];
 
 // ----------------------------------------------------------------------
-// ডেটা ম্যাপ
+// Data Map
 // ----------------------------------------------------------------------
 const roadmapDataMap = {
   web: webDevData,
@@ -1811,7 +1815,7 @@ const projectsMap = {
 };
 
 // ----------------------------------------------------------------------
-// অল ট্র্যাক ওভারভিউ
+// All Tracks Overview
 // ----------------------------------------------------------------------
 const AllTracksOverview = ({ onSelectTrack }) => {
   const [trackProgress, setTrackProgress] = useState({});
@@ -1886,7 +1890,7 @@ const AllTracksOverview = ({ onSelectTrack }) => {
 };
 
 // ----------------------------------------------------------------------
-// প্রধান রোডম্যাপ কম্পোনেন্ট
+// Main Roadmap Component
 // ----------------------------------------------------------------------
 const Roadmap = ({ trackId, onBackToDashboard }) => {
   const defaultData = roadmapDataMap[trackId];
@@ -2217,7 +2221,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* ব্যাক টু ড্যাশবোর্ড ও সার্টিফিকেট বাটন */}
+      {/* Back to Dashboard & Certificate Button */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <button
           onClick={onBackToDashboard}
@@ -2237,7 +2241,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         )}
       </div>
 
-      {/* হেডার */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-800 dark:to-gray-900 p-6 rounded-2xl shadow-sm">
         <div className="flex items-center gap-4">
           <div className={`p-3 rounded-xl bg-gradient-to-br ${defaultData.color} text-white shadow-md`}>
@@ -2278,7 +2282,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         </div>
       </div>
 
-      {/* ব্যাজ সেকশন */}
+      {/* Badges Section */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
           <Trophy className="text-yellow-500" size={20} />
@@ -2291,7 +2295,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         </div>
       </div>
 
-      {/* সাজেশন কার্ড */}
+      {/* Suggestions Card */}
       <div className="bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-purple-200 dark:border-purple-800/50 shadow-md">
         <div className="flex items-start gap-4">
           <div className="p-3 bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl shadow-md">
@@ -2303,7 +2307,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
               Personalized Suggestions
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-              {/* নেক্সট টপিক */}
+              {/* Next Topic */}
               <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-4 border border-purple-100 dark:border-purple-800 shadow-sm">
                 <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300 font-medium mb-2">
                   <Target size={16} />
@@ -2343,7 +2347,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
                   </p>
                 )}
               </div>
-              {/* রিভিউ রিমাইন্ডার */}
+              {/* Review Reminders */}
               <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-4 border border-amber-100 dark:border-amber-800 shadow-sm">
                 <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 font-medium mb-2">
                   <Bell size={16} />
@@ -2366,7 +2370,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
                   </p>
                 )}
               </div>
-              {/* ডেইলি গোল সাজেশন */}
+              {/* Daily Goal Suggestion */}
               <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-4 border border-green-100 dark:border-green-800 shadow-sm">
                 <div className="flex items-center gap-2 text-green-700 dark:text-green-300 font-medium mb-2">
                   <TrendingUp size={16} />
@@ -2393,7 +2397,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         </div>
       </div>
 
-      {/* ওভারভিউ কার্ড */}
+      {/* Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition">
           <div className="flex items-center justify-between">
@@ -2457,7 +2461,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         </div>
       </div>
 
-      {/* ক্যাটাগরি প্রোগ্রেস */}
+      {/* Category Progress */}
       <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <BarChart className="w-5 h-5 text-indigo-500" />
@@ -2488,7 +2492,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         </div>
       </div>
 
-      {/* রোডম্যাপ সেকশন */}
+      {/* Roadmap Sections */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {sections.map((section) => {
           const secStats = getSectionStats(section);
@@ -2566,7 +2570,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         })}
       </div>
 
-      {/* প্রোজেক্ট সুপারিশ */}
+      {/* Project Suggestions */}
       <div className="bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 rounded-2xl p-6 border border-indigo-200 dark:border-indigo-800/50 shadow-md">
         <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <Rocket className="w-5 h-5 text-indigo-600" />
@@ -2575,7 +2579,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         <ProjectSuggestions sections={sections} projects={projects} />
       </div>
 
-      {/* টাইমলাইন ও রিমাইন্ডার */}
+      {/* Timeline & Reminder */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-2 bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -2589,7 +2593,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         </div>
       </div>
 
-      {/* মোটিভেশন বার */}
+      {/* Motivation Bar */}
       <div className="bg-gradient-to-br from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 rounded-2xl p-6 border border-green-200 dark:border-green-800/50 shadow-md">
         <div className="flex items-start gap-4">
           <div className="p-3 bg-gradient-to-br from-green-600 to-emerald-700 rounded-xl shadow-md">
@@ -2618,7 +2622,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
         </div>
       </div>
 
-      {/* সার্টিফিকেট মোডাল */}
+      {/* Certificate Modal */}
       {showCertificate && (
         <CertificateModal
           trackTitle={defaultData.title}
@@ -2630,7 +2634,7 @@ const Roadmap = ({ trackId, onBackToDashboard }) => {
 };
 
 // ----------------------------------------------------------------------
-// প্যারেন্ট কম্পোনেন্ট
+// Parent Component
 // ----------------------------------------------------------------------
 const RoadmapContainer = () => {
   const [view, setView] = useState('dashboard');
@@ -2653,15 +2657,11 @@ const RoadmapContainer = () => {
           Learning Dashboard
         </h1>
         <AllTracksOverview onSelectTrack={handleSelectTrack} />
-
-        
       </div>
     );
   }
 
   return <Roadmap trackId={selectedTrack} onBackToDashboard={handleBackToDashboard} />;
-
-  
 };
 
 export default RoadmapContainer;
