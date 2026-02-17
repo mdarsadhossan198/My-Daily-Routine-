@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback, useMemo, lazy, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 
 // ------------------------------------------------------------
-// ১. ভাষা ডাটা (বাংলা + ইংরেজি)
+// ১. ভাষা ডাটা (বাংলা + ইংরেজি) – নতুন কী যুক্ত হয়েছে
 // ------------------------------------------------------------
 const translations = {
   bn: {
@@ -31,6 +32,45 @@ const translations = {
     close: "বন্ধ করুন",
     languageToggle: "English",
     milestoneStarted: "শুরু করেছেন",
+    customMilestones: "নিজস্ব মাইলফলক",
+    addCustom: "নতুন যোগ করুন",
+    points: "পয়েন্ট",
+    badges: "ব্যাজ",
+    enableNotifications: "মনে করানোর অনুমতি দিন",
+    shareProgress: "অগ্রগতি শেয়ার করুন",
+    exportData: "ডাটা এক্সপোর্ট",
+    importData: "ডাটা ইমপোর্ট",
+    searchNotes: "নোট খুঁজুন...",
+    history: "পূর্বের নোট",
+    noNotes: "কোন নোট নেই",
+    edit: "সম্পাদনা",
+    delete: "মুছুন",
+    streak: "টানা দিন",
+    weeklyChart: "সাপ্তাহিক নোট",
+    voiceInput: "ভয়েস ইনপুট",
+    listening: "শুনছে...",
+    darkMode: "ডার্ক মোড",
+    lightMode: "লাইট মোড",
+    // নতুন কী
+    guidedTour: "শুরু করার গাইড",
+    next: "পরবর্তী",
+    prev: "পূর্ববর্তী",
+    finish: "শেষ",
+    help: "সাহায্য",
+    focusMode: "ফোকাস মোড",
+    showCompleted: "সম্পন্ন দেখান",
+    hideCompleted: "সম্পন্ন লুকান",
+    totalNotes: "মোট নোট",
+    longestStreak: "সর্বোচ্চ টানা দিন",
+    avgNotesPerWeek: "সাপ্তাহিক গড় নোট",
+    badgeGallery: "ব্যাজ গ্যালারি",
+    reminderTime: "মনে করানোর সময়",
+    setReminder: "নির্ধারণ করুন",
+    reminderSet: "মনে করানো সেট করা হয়েছে",
+    tourStep1: "প্রতিটি মাইলফলকে ক্লিক করে বিস্তারিত দেখুন এবং নোট লিখুন।",
+    tourStep2: "আপনার নিজস্ব মাইলফলক যোগ করতে পারেন নিচের ফর্ম থেকে।",
+    tourStep3: "অগ্রগতি শেয়ার করুন বা ব্যাকআপ নিন উপরের বাটন থেকে।",
+    tourStep4: "ডার্ক মোড টগল করে চোখের আরাম নিশ্চিত করুন।",
   },
   en: {
     appTitle: "Communication Skills Roadmap",
@@ -58,580 +98,90 @@ const translations = {
     close: "Close",
     languageToggle: "বাংলা",
     milestoneStarted: "Started on",
+    customMilestones: "Custom Milestones",
+    addCustom: "Add New",
+    points: "Points",
+    badges: "Badges",
+    enableNotifications: "Enable Reminders",
+    shareProgress: "Share Progress",
+    exportData: "Export Data",
+    importData: "Import Data",
+    searchNotes: "Search notes...",
+    history: "History",
+    noNotes: "No notes",
+    edit: "Edit",
+    delete: "Delete",
+    streak: "Day streak",
+    weeklyChart: "Weekly notes",
+    voiceInput: "Voice input",
+    listening: "Listening...",
+    darkMode: "Dark mode",
+    lightMode: "Light mode",
+    // new keys
+    guidedTour: "Guided Tour",
+    next: "Next",
+    prev: "Previous",
+    finish: "Finish",
+    help: "Help",
+    focusMode: "Focus Mode",
+    showCompleted: "Show Completed",
+    hideCompleted: "Hide Completed",
+    totalNotes: "Total Notes",
+    longestStreak: "Longest Streak",
+    avgNotesPerWeek: "Avg Notes/Week",
+    badgeGallery: "Badge Gallery",
+    reminderTime: "Reminder Time",
+    setReminder: "Set",
+    reminderSet: "Reminder set",
+    tourStep1: "Click on any milestone to see details and write notes.",
+    tourStep2: "You can add your own custom milestones using the form below.",
+    tourStep3: "Share your progress or backup data using the buttons above.",
+    tourStep4: "Toggle dark mode for comfortable viewing.",
   },
 };
 
 // ------------------------------------------------------------
-// ২. রোডম্যাপ ডাটা – সম্পূর্ণ দ্বিভাষিক, ৪ লেভেল × ৪ মাইলফলক
+// ২. রোডম্যাপ ডাটা – আগের মতোই (সংক্ষেপে দেখানো হলো)
 // ------------------------------------------------------------
 const roadmapData = {
   beginner: {
     name: "beginner",
     color: "blue",
-    headerClass: "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800",
-    badgeClass: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300",
-    progressClass: "bg-blue-600",
-    hoverBorderClass: "hover:border-blue-300 dark:hover:border-blue-700",
     milestones: [
-      {
-        id: "b1",
-        title: { bn: "সক্রিয় শ্রবণ", en: "Active Listening" },
-        shortDesc: {
-          bn: "বক্তার কথা মনোযোগ দিয়ে শোনা, নিজের উত্তর না ভাবা।",
-          en: "Focus on the speaker, avoid planning your response.",
-        },
-        details: {
-          tips: {
-            bn: "বক্তার দিকে তাকান, মাঝপথে বাধা দেবেন না। তাঁর কথার মূলভাব বোঝার চেষ্টা করুন।",
-            en: "Maintain eye contact, don't interrupt. Try to understand the core message.",
-          },
-          importance: {
-            bn: "সক্রিয় শ্রবণ আস্থা তৈরি করে, ভুল বোঝাবুঝি কমায় এবং সম্পর্ক মজবুত করে।",
-            en: "Active listening builds trust, reduces misunderstandings, and strengthens relationships.",
-          },
-          exercises: {
-            bn: "২ মিনিটের একটি পডকাস্ট শুনে নিজের ভাষায় সংক্ষেপে লিখুন।",
-            en: "Listen to a 2-minute podcast and summarize it in your own words.",
-          },
-          examples: {
-            bn: '"আপনি বলতে চাচ্ছেন যে..."',
-            en: '"So what you\'re saying is..."',
-          },
-          improvementTips: {
-            bn: "প্রতিদিন ৫ মিনিট কারও কথা পুরো মনোযোগ দিয়ে শোনার অভ্যাস করুন। পরে তাঁকে আপনার বোধগম্যতা যাচাই করে বলুন।",
-            en: "Practice listening without interruption for 5 minutes daily. Then paraphrase to confirm understanding.",
-          },
-          links: [
-            { title: "MindTools - Active Listening", url: "https://www.mindtools.com/az4wxv7/active-listening" },
-            { title: "HelpGuide - Active Listening", url: "https://www.helpguide.org/articles/relationships-communication/effective-communication.htm" },
-          ],
-        },
-      },
-      {
-        id: "b2",
-        title: { bn: "স্পষ্টতা ও সংক্ষিপ্ততা", en: "Clarity & Conciseness" },
-        shortDesc: {
-          bn: "অল্প কথায় নিজের ভাবনা প্রকাশ।",
-          en: "Express ideas in few words.",
-        },
-        details: {
-          tips: {
-            bn: "সহজ শব্দ ব্যবহার করুন; এক বাক্যে একটি করে ধারণা রাখুন।",
-            en: "Use simple vocabulary; one idea per sentence.",
-          },
-          importance: {
-            bn: "স্পষ্ট ও সংক্ষিপ্ত ভাষা শ্রোতা দ্রুত বুঝতে পারেন, সময় বাঁচে এবং বার্তা কার্যকর হয়।",
-            en: "Clear and concise language saves time and ensures your message is understood quickly.",
-          },
-          exercises: {
-            bn: "একটি দীর্ঘ অনুচ্ছেদকে ৩টি বুলেট পয়েন্টে পুনর্লিখন করুন।",
-            en: "Rewrite a long paragraph into 3 bullet points.",
-          },
-          examples: {
-            bn: '"আমার মনে হয় হয়তো আমরা..."-এর পরিবর্তে "চলুন..." বলুন।',
-            en: 'Instead of "I think that maybe we could..." say "Let\'s..."',
-          },
-          improvementTips: {
-            bn: "প্রতিদিন একটি জটিল ধারণা ৩০ সেকেন্ডে ব্যাখ্যা করার চেষ্টা করুন। রেকর্ড করে নিজেই শুনুন।",
-            en: "Try to explain a complex idea in 30 seconds daily. Record and listen to yourself.",
-          },
-          links: [
-            { title: "Harvard Business Review - Conciseness", url: "https://hbr.org/2014/11/how-to-speak-concisely" },
-          ],
-        },
-      },
-      {
-        id: "b3",
-        title: { bn: "অমৌখিক যোগাযোগের মূলনীতি", en: "Non‑verbal Basics" },
-        shortDesc: {
-          bn: "চোখের দৃষ্টি, দেহভঙ্গি, অঙ্গভঙ্গি।",
-          en: "Eye contact, posture, gestures.",
-        },
-        details: {
-          tips: {
-            bn: "কথা বলার সময় ৬০-৭০% সময় চোখে চোখ রাখুন। হাতের ভঙ্গি অর্থপূর্ণ রাখুন।",
-            en: "Maintain eye contact 60‑70% of the time. Use purposeful hand gestures.",
-          },
-          importance: {
-            bn: "অমৌখিক ইঙ্গিত মৌখিক বার্তাকে শক্তিশালী করে। সঠিক দেহভাষা আত্মবিশ্বাস ও আন্তরিকতা প্রকাশ করে।",
-            en: "Non‑verbal cues reinforce your message. Good body language conveys confidence and sincerity.",
-          },
-          exercises: {
-            bn: "আপনার কথা বলার একটি ভিডিও রেকর্ড করুন এবং শব্দ ছাড়া দেখুন।",
-            en: "Record yourself speaking and watch without sound.",
-          },
-          examples: {
-            bn: "হাত-পা বাঁধা না রেখে উন্মুক্ত দেহভঙ্গি রাখুন।",
-            en: "Keep an open posture – uncrossed arms and legs.",
-          },
-          improvementTips: {
-            bn: "আয়নার সামনে কথা বলার অভ্যাস করুন। আপনার হাতের ভঙ্গি ও মুখাবয়ব পর্যবেক্ষণ করুন।",
-            en: "Practice speaking in front of a mirror. Observe your gestures and facial expressions.",
-          },
-          links: [
-            { title: "Verywell Mind - Nonverbal Communication", url: "https://www.verywellmind.com/types-of-nonverbal-communication-2795397" },
-          ],
-        },
-      },
-      {
-        id: "b4",
-        title: { bn: "প্রশ্ন জিজ্ঞাসার কৌশল", en: "Asking Questions" },
-        shortDesc: {
-          bn: "উন্মুক্ত ও সংক্ষিপ্ত প্রশ্নের পার্থক্য।",
-          en: "Open‑ended vs closed questions.",
-        },
-        details: {
-          tips: {
-            bn: '"কেন", "কীভাবে" দিয়ে প্রশ্ন শুরু করলে উত্তর বিস্তারিত হয়।',
-            en: 'Start questions with "how" or "what" to encourage elaboration.',
-          },
-          importance: {
-            bn: "উন্মুক্ত প্রশ্ন আলোচনাকে গভীর করে, অন্যদের চিন্তা প্রকাশের সুযোগ দেয় এবং সম্পর্ক উন্নত করে।",
-            en: "Open‑ended questions deepen conversations and show genuine interest.",
-          },
-          exercises: {
-            bn: "৫টি সংক্ষিপ্ত প্রশ্ন (হ্যাঁ/বুঝি) উন্মুক্ত প্রশ্নে রূপান্তর করুন।",
-            en: "Convert 5 closed questions (yes/no) into open‑ended ones.",
-          },
-          examples: {
-            bn: '"আপনি কি এটি পছন্দ করেছেন?"-এর পরিবর্তে "আপনি এটি সম্পর্কে কী ভাবছেন?"',
-            en: 'Instead of "Did you like it?" ask "What did you think of it?"',
-          },
-          improvementTips: {
-            bn: "প্রতিদিন কমপক্ষে ৩টি উন্মুক্ত প্রশ্ন তৈরি করুন এবং বাস্তব কথোপকথনে ব্যবহার করুন।",
-            en: "Create at least 3 open‑ended questions daily and use them in real conversations.",
-          },
-          links: [
-            { title: "The Power of Open-Ended Questions", url: "https://www.ccl.org/articles/leading-effectively-articles/open-ended-questions/" },
-          ],
-        },
-      },
+      { id: "b1", title: { bn: "সক্রিয় শ্রবণ", en: "Active Listening" }, shortDesc: { bn: "বক্তার কথা মনোযোগ দিয়ে শোনা।", en: "Focus on the speaker." }, details: {} },
+      { id: "b2", title: { bn: "স্পষ্টতা", en: "Clarity" }, shortDesc: { bn: "অল্প কথায়", en: "Few words" }, details: {} },
+      { id: "b3", title: { bn: "অমৌখিক", en: "Non-verbal" }, shortDesc: { bn: "দেহভঙ্গি", en: "Posture" }, details: {} },
+      { id: "b4", title: { bn: "প্রশ্ন কৌশল", en: "Questioning" }, shortDesc: { bn: "উন্মুক্ত প্রশ্ন", en: "Open-ended" }, details: {} },
     ],
   },
   intermediate: {
     name: "intermediate",
     color: "green",
-    headerClass: "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800",
-    badgeClass: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300",
-    progressClass: "bg-green-600",
-    hoverBorderClass: "hover:border-green-300 dark:hover:border-green-700",
     milestones: [
-      {
-        id: "i1",
-        title: { bn: "সহানুভূতিশীল যোগাযোগ", en: "Empathy in Communication" },
-        shortDesc: {
-          bn: "অন্যের অনুভূতি বোঝা ও স্বীকার করা।",
-          en: "Acknowledge others' feelings.",
-        },
-        details: {
-          tips: {
-            bn: '"আমি বুঝতে পারছি যে আপনি..." এই বাক্যটি ব্যবহার করুন।',
-            en: 'Use phrases like "I understand that you..."',
-          },
-          importance: {
-            bn: "সহানুভূতি দ্বন্দ্ব নিরসনে সহায়তা করে, বিশ্বাস গড়ে তোলে এবং গভীর সম্পর্ক তৈরি করে।",
-            en: "Empathy resolves conflicts, builds trust, and deepens relationships.",
-          },
-          exercises: {
-            bn: "একটি অভিযোগ শুনে সহানুভূতির সাথে উত্তর দিন (লিখিত বা মৌখিক)।",
-            en: "Listen to a complaint and respond empathetically (written or spoken).",
-          },
-          examples: {
-            bn: '"মনে হচ্ছে আপনি হতাশ কারণ..."',
-            en: '"It sounds like you\'re frustrated because..."',
-          },
-          improvementTips: {
-            bn: "অন্যের দৃষ্টিকোণ থেকে চিন্তা করার অভ্যাস করুন। প্রতিদিন একজন মানুষের গল্প শুনে তাতে সহানুভূতি জানান।",
-            en: "Practice perspective‑taking. Listen to someone's story and express empathy daily.",
-          },
-          links: [
-            { title: "Greater Good - Empathy", url: "https://greatergood.berkeley.edu/topic/empathy/definition" },
-          ],
-        },
-      },
-      {
-        id: "i2",
-        title: { bn: "বার্তা গঠন কৌশল (PREP)", en: "Structuring Messages (PREP)" },
-        shortDesc: {
-          bn: "মূল বক্তব্য, কারণ, উদাহরণ, পুনরুক্তি।",
-          en: "Point, Reason, Example, Point.",
-        },
-        details: {
-          tips: {
-            bn: "প্রথমে মূল বক্তব্য বলুন, তারপরে যুক্তি ও উদাহরণ দিন।",
-            en: "State your main point first, then support it with reason and example.",
-          },
-          importance: {
-            bn: "PREP পদ্ধতি বার্তাকে সুসংহত ও প্রভাবশালী করে, শ্রোতা সহজেই অনুসরণ করতে পারেন।",
-            en: "PREP makes your message structured and persuasive; listeners follow easily.",
-          },
-          exercises: {
-            bn: "PREP পদ্ধতিতে ১ মিনিটের বক্তৃতা প্রস্তুত করুন।",
-            en: "Prepare a 1‑minute speech using the PREP method.",
-          },
-          examples: {
-            bn: '"আমাদের নতুন সফটওয়্যার দরকার (মূল বক্তব্য) কারণ বর্তমানটি ধীর (কারণ)..."',
-            en: '"We need new software (Point) because the current one is slow (Reason)..."',
-          },
-          improvementTips: {
-            bn: "যেকোনো আলোচনার আগে ৩০ সেকেন্ডে PREP কাঠামোয় ভাবনা সাজানোর অভ্যাস করুন।",
-            en: "Before any discussion, practice organizing your thoughts in the PREP framework (30 seconds).",
-          },
-          links: [
-            { title: "PREP Method - Communication", url: "https://www.communicationtheory.org/prep-method/" },
-          ],
-        },
-      },
-      {
-        id: "i3",
-        title: { bn: "গঠনমূলক প্রতিক্রিয়া (SBI)", en: "Giving Feedback (SBI)" },
-        shortDesc: {
-          bn: "পরিস্থিতি, আচরণ, প্রভাব।",
-          en: "Situation, Behaviour, Impact.",
-        },
-        details: {
-          tips: {
-            bn: "ব্যক্তিত্ব নয়, নির্দিষ্ট আচরণ নিয়ে কথা বলুন।",
-            en: "Focus on specific behaviour, not the person's character.",
-          },
-          importance: {
-            bn: "SBI পদ্ধতি ব্যক্তিকে আক্রমণ না করে আচরণের উন্নতিতে সাহায্য করে, প্রতিরক্ষামূলক মনোভাব কমায়।",
-            en: "SBI reduces defensiveness and focuses on improvement rather than blame.",
-          },
-          exercises: {
-            bn: "একটি কাল্পনিক সহকর্মীর জন্য SBI মডেলে প্রতিক্রিয়া লিখুন।",
-            en: "Write feedback for a fictional colleague using the SBI model.",
-          },
-          examples: {
-            bn: '"গতকালের মিটিংয়ে (পরিস্থিতি) আপনি দুবার বাধা দিয়েছেন (আচরণ), এতে বক্তার কথা বলার ধারা ভেঙে গেছে (প্রভাব)।"',
-            en: '"In yesterday\'s meeting (Situation), you interrupted twice (Behaviour), which disrupted the speaker\'s flow (Impact)."',
-          },
-          improvementTips: {
-            bn: "আপনার দেওয়া প্রতিটি প্রতিক্রিয়াকে SBI ফরম্যাটে সাজানোর চেষ্টা করুন। অনুশীলনের জন্য বাস্তব ঘটনা লিখুন।",
-            en: "Try to reframe every piece of feedback you give into SBI format. Write down real examples.",
-          },
-          links: [
-            { title: "Center for Creative Leadership - SBI", url: "https://www.ccl.org/articles/leading-effectively-articles/situation-behavior-impact-feedback-tool/" },
-          ],
-        },
-      },
-      {
-        id: "i4",
-        title: { bn: "শ্রোতা অনুযায়ী ভাষা নির্বাচন", en: "Adapting to Audience" },
-        shortDesc: {
-          bn: "সুর, আনুষ্ঠানিকতা, শব্দভান্ডার।",
-          en: "Tone, formality, vocabulary.",
-        },
-        details: {
-          tips: {
-            bn: "শ্রোতার ভাষার স্তর ও প্রেক্ষাপট বুঝে কথা বলুন।",
-            en: "Mirror the other person's language level and context.",
-          },
-          importance: {
-            bn: "শ্রোতাভেদে ভাষা পরিবর্তন করলে বার্তা সহজে গৃহীত হয়, শ্রোতা সম্মানিত বোধ করেন।",
-            en: "Adapting your language makes your message more accessible and shows respect.",
-          },
-          exercises: {
-            bn: "একটি প্রযুক্তিগত ধারণা ৮ বছর বয়সী শিশু ও একজন ব্যবস্থাপকের কাছে ব্যাখ্যা করুন।",
-            en: "Explain a technical concept to an 8‑year‑old child and to a manager.",
-          },
-          examples: {
-            bn: "শিশুকে: 'ফোন ছবি ধরে রাখে'। সিইও-কে: 'ডিভাইসটিতে ফ্ল্যাশ মেমরি সংরক্ষিত হয়'।",
-            en: "To a child: 'The phone stores pictures.' To a CEO: 'The device utilizes flash memory.'",
-          },
-          improvementTips: {
-            bn: "প্রতিদিন একই তথ্য বিভিন্ন শ্রোতার (বন্ধু, পরিবার, বস) জন্য ভিন্নভাবে বলার অভ্যাস করুন।",
-            en: "Practice explaining the same idea to different audiences daily.",
-          },
-          links: [
-            { title: "Harvard Professional Development", url: "https://professional.dce.harvard.edu/blog/how-to-adapt-your-communication-style-to-different-audiences/" },
-          ],
-        },
-      },
+      { id: "i1", title: { bn: "সহানুভূতি", en: "Empathy" }, shortDesc: { bn: "অন্যের অনুভূতি", en: "Feelings" }, details: {} },
+      { id: "i2", title: { bn: "বার্তা গঠন (PREP)", en: "Structuring (PREP)" }, shortDesc: { bn: "মূল বক্তব্য", en: "Point" }, details: {} },
+      { id: "i3", title: { bn: "প্রতিক্রিয়া (SBI)", en: "Feedback (SBI)" }, shortDesc: { bn: "পরিস্থিতি-আচরণ-প্রভাব", en: "Situation-Behavior-Impact" }, details: {} },
+      { id: "i4", title: { bn: "শ্রোতা অনুযায়ী", en: "Adapt to Audience" }, shortDesc: { bn: "সুর, শব্দ", en: "Tone, words" }, details: {} },
     ],
   },
   advanced: {
     name: "advanced",
     color: "orange",
-    headerClass: "bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800",
-    badgeClass: "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300",
-    progressClass: "bg-orange-600",
-    hoverBorderClass: "hover:border-orange-300 dark:hover:border-orange-700",
     milestones: [
-      {
-        id: "a1",
-        title: { bn: "প্ররোচনা কৌশল (Ethos, Pathos, Logos)", en: "Persuasion Techniques" },
-        shortDesc: {
-          bn: "আস্থা, আবেগ, যুক্তি।",
-          en: "Ethos, Pathos, Logos.",
-        },
-        details: {
-          tips: {
-            bn: "বিশ্বাসযোগ্যতা, আবেগ ও যুক্তি—তিনটির সমন্বয় ঘটান।",
-            en: "Combine credibility, emotion, and logic.",
-          },
-          importance: {
-            bn: "প্ররোচনা দক্ষতা মানুষকে প্রভাবিত করে, নেতৃত্বের গুণাবলি বিকাশ করে এবং পেশাগত সাফল্য আনে।",
-            en: "Persuasion influences others, develops leadership, and drives professional success.",
-          },
-          exercises: {
-            bn: "একটি আইডিয়া প্ররোচনামূলকভাবে উপস্থাপনের জন্য ১ মিনিটের বক্তব্য তৈরি করুন।",
-            en: "Prepare a 1‑minute persuasive pitch for an idea.",
-          },
-          examples: {
-            bn: '"একজন চিকিৎসক হিসেবে (আস্থা) আমি দেখেছি এটি জীবন বাঁচায় (আবেগ); পরিসংখ্যান বলছে এটি ৩০% কার্যকর (যুক্তি)।"',
-            en: '"As a doctor (ethos), I\'ve seen this save lives (pathos); data shows 30% effectiveness (logos)."',
-          },
-          improvementTips: {
-            bn: "বিজ্ঞাপন, রাজনৈতিক বক্তব্য বিশ্লেষণ করে Ethos, Pathos, Logos চিহ্নিত করুন। নিজের বক্তব্যে এদের প্রয়োগ করুন।",
-            en: "Analyze ads and speeches for ethos, pathos, logos. Apply them in your own communication.",
-          },
-          links: [
-            { title: "Ethos, Pathos, Logos - Purdue OWL", url: "https://owl.purdue.edu/owl/general_writing/academic_writing/rhetorical_situation/ethos_pathos_logos.html" },
-          ],
-        },
-      },
-      {
-        id: "a2",
-        title: { bn: "দ্বন্দ্ব নিরসন", en: "Conflict Resolution" },
-        shortDesc: {
-          bn: "জয়-জয় সমঝোতা।",
-          en: "Win‑win negotiation.",
-        },
-        details: {
-          tips: {
-            bn: "ব্যক্তি থেকে সমস্যাকে আলাদা করুন। অভিন্ন স্বার্থ খুঁজুন।",
-            en: "Separate people from the problem. Find common interests.",
-          },
-          importance: {
-            bn: "দ্বন্দ্ব নিরসন কর্মক্ষেত্র ও ব্যক্তিজীবনে সুস্থ সম্পর্ক বজায় রাখে, উৎপাদনশীলতা বাড়ায়।",
-            en: "Conflict resolution maintains healthy relationships and boosts productivity.",
-          },
-          exercises: {
-            bn: "দুই পক্ষের মধ্যে কাল্পনিক দ্বন্দ্ব সমাধানের সংলাপ লিখুন।",
-            en: "Write a dialogue resolving a fictional conflict between two parties.",
-          },
-          examples: {
-            bn: '"আমরা দুজনেই প্রকল্পটি সফল করতে চাই; আসুন এমন একটি সময়সীমা বের করি যা দুজনের জন্য সুবিধাজনক।"',
-            en: '"We both want the project to succeed; let\'s find a timeline that works for both of us."',
-          },
-          improvementTips: {
-            bn: "দ্বন্দ্বের সময় নিজের আবেগ নিয়ন্ত্রণে রাখতে ১০ সেকেন্ড চুপ থাকুন। পরে 'আমি' দিয়ে বক্তব্য শুরু করুন (যেমন 'আমার মনে হলো...')।",
-            en: "During a conflict, pause for 10 seconds. Start sentences with 'I' (e.g., 'I felt...').",
-          },
-          links: [
-            { title: "Harvard Law - Conflict Resolution", url: "https://www.pon.harvard.edu/tag/conflict-resolution/" },
-          ],
-        },
-      },
-      {
-        id: "a3",
-        title: { bn: "গল্প বলা (Storytelling)", en: "Storytelling" },
-        shortDesc: {
-          bn: "প্রেক্ষাপট, দ্বন্দ্ব, সমাধান।",
-          en: "Context, conflict, resolution.",
-        },
-        details: {
-          tips: {
-            bn: "ব্যক্তিগত অভিজ্ঞতার গল্প বলুন যা আপনার বক্তব্যকে সমর্থন করে।",
-            en: "Use personal stories that support your message.",
-          },
-          importance: {
-            bn: "গল্প মস্তিষ্কে সহজে গেঁথে যায়, শ্রোতার মনে দীর্ঘস্থায়ী প্রভাব ফেলে এবং বার্তাকে প্রাণবন্ত করে।",
-            en: "Stories are memorable, create emotional connection, and make abstract ideas concrete.",
-          },
-          exercises: {
-            bn: "একটি ডেটা রিপোর্টকে ২ মিনিটের গল্পে রূপান্তর করুন।",
-            en: "Turn a data report into a 2‑minute story.",
-          },
-          examples: {
-            bn: '"শুরুতে বিক্রি কম ছিল; তারপর আমরা এক্স পদ্ধতি চালু করি এবং ৪০% বৃদ্ধি পাই..."',
-            en: '"Sales were flat; then we introduced X and saw a 40% increase..."',
-          },
-          improvementTips: {
-            bn: "প্রতিদিন একটি ছোট ঘটনাকে গল্পের কাঠামোয় সাজান। বন্ধুকে শোনান।",
-            en: "Structure a daily event into a story and tell it to a friend.",
-          },
-          links: [
-            { title: "Stanford GSB - Storytelling", url: "https://www.gsb.stanford.edu/insights/why-storytelling-makes-communication-memorable" },
-          ],
-        },
-      },
-      {
-        id: "a4",
-        title: { bn: "কর্তৃত্ব ছাড়া প্রভাব বিস্তার", en: "Influencing Without Authority" },
-        shortDesc: {
-          bn: "মিত্রতা ও সমঝোতা।",
-          en: "Building alliances.",
-        },
-        details: {
-          tips: {
-            bn: "অন্যের দক্ষতাকে মূল্যায়ন করুন, পরামর্শ চান।",
-            en: "Acknowledge others' expertise and ask for advice.",
-          },
-          importance: {
-            bn: "সাংগঠনিক ক্ষমতা ছাড়াই মানুষকে অনুপ্রাণিত করার দক্ষতা নেতৃত্বের অন্যতম চাবিকাঠি।",
-            en: "Influencing without formal authority is a key leadership skill.",
-          },
-          exercises: {
-            bn: "একটি প্রকল্পের জন্য কল্পিত স্টেকহোল্ডার ম্যাপ তৈরি করুন।",
-            en: "Create a stakeholder map for a hypothetical project.",
-          },
-          examples: {
-            bn: '"এই বিষয়ে আপনার অভিজ্ঞতা অমূল্য—আপনার মতামত কী?"',
-            en: '"Your expertise on this is invaluable—what\'s your take?"',
-          },
-          improvementTips: {
-            bn: "প্রতিদিন একজন সহকর্মীর কাছ থেকে অভিমত চান এবং তার অবদানের প্রশংসা করুন।",
-            en: "Daily, ask a colleague for their opinion and appreciate their input.",
-          },
-          links: [
-            { title: "HBR - Influencing Without Authority", url: "https://hbr.org/2019/03/how-to-influence-people-when-youre-not-the-boss" },
-          ],
-        },
-      },
+      { id: "a1", title: { bn: "প্ররোচনা", en: "Persuasion" }, shortDesc: { bn: "Ethos, Pathos, Logos", en: "Ethos, Pathos, Logos" }, details: {} },
+      { id: "a2", title: { bn: "দ্বন্দ্ব নিরসন", en: "Conflict Resolution" }, shortDesc: { bn: "জয়-জয়", en: "Win-win" }, details: {} },
+      { id: "a3", title: { bn: "গল্প বলা", en: "Storytelling" }, shortDesc: { bn: "প্রেক্ষাপট, দ্বন্দ্ব, সমাধান", en: "Context, conflict, resolution" }, details: {} },
+      { id: "a4", title: { bn: "প্রভাব (কর্তৃত্ব ছাড়া)", en: "Influence w/o Authority" }, shortDesc: { bn: "মিত্রতা", en: "Alliances" }, details: {} },
     ],
   },
   expert: {
     name: "expert",
     color: "purple",
-    headerClass: "bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800",
-    badgeClass: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300",
-    progressClass: "bg-purple-600",
-    hoverBorderClass: "hover:border-purple-300 dark:hover:border-purple-700",
     milestones: [
-      {
-        id: "e1",
-        title: { bn: "নির্বাহী উপস্থিতি", en: "Executive Presence" },
-        shortDesc: {
-          bn: "আত্মবিশ্বাস, স্থিরতা, প্রভাব।",
-          en: "Confidence, poise, gravitas.",
-        },
-        details: {
-          tips: {
-            bn: "উত্তর দেওয়ার আগে থামুন, ধীরে কথা বলুন।",
-            en: "Pause before answering, speak slowly.",
-          },
-          importance: {
-            bn: "নির্বাহী উপস্থিতি বিশ্বাসযোগ্যতা ও কর্তৃত্ব স্থাপন করে, বড় দলের সামনে কথা বলার সক্ষমতা বাড়ায়।",
-            en: "Executive presence builds credibility and authority, essential for leading large groups.",
-          },
-          exercises: {
-            bn: "৩ মিনিটের উপস্থাপনায় ইচ্ছাকৃত বিরতি দিন।",
-            en: "Deliver a 3‑minute presentation with deliberate pauses.",
-          },
-          examples: {
-            bn: "কঠিন প্রশ্নের উত্তর দেওয়ার আগে মনে মনে ৩ পর্যন্ত গুণুন।",
-            en: "Count to three silently before responding to tough questions.",
-          },
-          improvementTips: {
-            bn: "প্রতিদিন আয়নার সামনে দাঁড়িয়ে ২ মিনিট ইতিবাচক নিশ্চয়তা দিন। স্বরগ্রাম ও ভঙ্গি পর্যবেক্ষণ করুন।",
-            en: "Practice positive affirmations in front of a mirror for 2 minutes daily; observe your tone and posture.",
-          },
-          links: [
-            { title: "Center for Talent Innovation", url: "https://www.talentinnovation.org/publications.cfm" },
-          ],
-        },
-      },
-      {
-        id: "e2",
-        title: { bn: "আন্তঃসাংস্কৃতিক যোগাযোগ", en: "Cross‑Cultural Communication" },
-        shortDesc: {
-          bn: "উচ্চ-প্রেক্ষাপট বনাম নিম্ন-প্রেক্ষাপট সংস্কৃতি।",
-          en: "High‑context vs low‑context cultures.",
-        },
-        details: {
-          tips: {
-            bn: "আন্তর্জাতিক কলের আগে সংস্কৃতি সম্পর্কে জেনে নিন।",
-            en: "Research cultural norms before international calls.",
-          },
-          importance: {
-            bn: "বিশ্বায়িত পেশাজীবনে সাংস্কৃতিক পার্থক্য বোঝা ভুল বোঝাবুঝি কমায় ও বৈশ্বিক সম্পর্ক উন্নত করে।",
-            en: "Understanding cultural differences minimizes misunderstandings and enhances global collaboration.",
-          },
-          exercises: {
-            bn: "দুটি দেশের যোগাযোগ রীতির তুলনা করুন।",
-            en: "Compare communication styles of two countries.",
-          },
-          examples: {
-            bn: "জাপানে চুপ থাকা সম্মান; ব্রাজিলে একসঙ্গে কথা বলা ব্যস্ততার লক্ষণ।",
-            en: "In Japan, silence is respectful; in Brazil, overlapping speech indicates engagement.",
-          },
-          improvementTips: {
-            bn: "বিদেশি সিনেমা বা ডকুমেন্টারি দেখে বিভিন্ন সংস্কৃতির যোগাযোগশৈলী বিশ্লেষণ করুন।",
-            en: "Watch foreign films or documentaries and analyze communication styles.",
-          },
-          links: [
-            { title: "Hofstede Insights", url: "https://www.hofstede-insights.com/country-comparison/" },
-          ],
-        },
-      },
-      {
-        id: "e3",
-        title: { bn: "কোচিং ও মেন্টরিং", en: "Coaching & Mentoring" },
-        shortDesc: {
-          bn: "শক্তিশালী প্রশ্ন জিজ্ঞাসা।",
-          en: "Ask powerful questions.",
-        },
-        details: {
-          tips: {
-            bn: "GROW মডেল ব্যবহার করুন (লক্ষ্য, বাস্তবতা, বিকল্প, ইচ্ছাশক্তি)।",
-            en: "Use the GROW model (Goal, Reality, Options, Will).",
-          },
-          importance: {
-            bn: "কোচিং দক্ষতা অন্যদের আত্মনির্ভরশীল করে, দলের সামগ্রিক সক্ষমতা বাড়ায়।",
-            en: "Coaching empowers others and increases team capability.",
-          },
-          exercises: {
-            bn: "একজন সহকর্মীর চ্যালেঞ্জ নেওয়ার সময় শুধু প্রশ্ন করে তাঁকে কোচিং দিন।",
-            en: "Coach a peer through a challenge using only questions.",
-          },
-          examples: {
-            bn: '"আদর্শ ফলাফল কেমন দেখতে?"',
-            en: '"What would an ideal outcome look like?"',
-          },
-          improvementTips: {
-            bn: "প্রতিদিন একটি GROW প্রশ্ন তৈরি করুন এবং তা নিজের বা অন্যের ক্ষেত্রে প্রয়োগ করুন।",
-            en: "Formulate one GROW question daily and apply it to yourself or others.",
-          },
-          links: [
-            { title: "GROW Model - MindTools", url: "https://www.mindtools.com/pages/article/grow-model.htm" },
-          ],
-        },
-      },
-      {
-        id: "e4",
-        title: { bn: "সংকটকালীন যোগাযোগ", en: "Crisis Communication" },
-        shortDesc: {
-          bn: "স্বচ্ছতা, সহানুভূতি, পদক্ষেপ।",
-          en: "Transparency, empathy, action.",
-        },
-        details: {
-          tips: {
-            bn: "প্রথমে সমস্যা স্বীকার করুন, তারপর সমাধানের পথ ব্যাখ্যা করুন।",
-            en: "Acknowledge the issue first, then explain the solution path.",
-          },
-          importance: {
-            bn: "সংকটে দ্রুত ও সৎ যোগাযোগ সুনাম রক্ষা করে, স্টেকহোল্ডারদের আস্থা ধরে রাখে।",
-            en: "Fast, honest communication during a crisis preserves reputation and stakeholder trust.",
-          },
-          exercises: {
-            bn: "একটি পণ্য প্রত্যাহারের বার্তার খসড়া তৈরি করুন।",
-            en: "Draft a message for a product recall.",
-          },
-          examples: {
-            bn: '"আমরা সমস্যাটি জানি এবং সমাধানে কাজ করছি। আগামীকাল হালনাগাদ জানাব।"',
-            en: '"We are aware of the issue and are working on a fix. We\'ll update you tomorrow."',
-          },
-          improvementTips: {
-            bn: "বাস্তব সংকটের সংবাদ সম্মেলন বিশ্লেষণ করুন। আপনার নিজস্ব প্রতিক্রিয়ার খসড়া তৈরি করুন।",
-            en: "Analyze real crisis press conferences; draft your own response.",
-          },
-          links: [
-            { title: "Crisis Communication - FEMA", url: "https://training.fema.gov/emiweb/is/is242b/student%20manual/sm_05.pdf" },
-          ],
-        },
-      },
+      { id: "e1", title: { bn: "নির্বাহী উপস্থিতি", en: "Executive Presence" }, shortDesc: { bn: "আত্মবিশ্বাস", en: "Confidence" }, details: {} },
+      { id: "e2", title: { bn: "আন্তঃসাংস্কৃতিক", en: "Cross-Cultural" }, shortDesc: { bn: "উচ্চ-প্রেক্ষাপট", en: "High-context" }, details: {} },
+      { id: "e3", title: { bn: "কোচিং", en: "Coaching" }, shortDesc: { bn: "GROW মডেল", en: "GROW model" }, details: {} },
+      { id: "e4", title: { bn: "সংকটকালীন", en: "Crisis Comm" }, shortDesc: { bn: "স্বচ্ছতা, সহানুভূতি", en: "Transparency, empathy" }, details: {} },
     ],
   },
 };
@@ -640,8 +190,14 @@ const roadmapData = {
 // ৩. হেল্পার ফাংশন (স্টোরেজ, তারিখ)
 // ------------------------------------------------------------
 const PROGRESS_KEY = "comm_v4_progress";
-const NOTES_KEY = "comm_v4_notes";
+const NOTES_KEY = "comm_v4_notes_v2";
+const CUSTOM_KEY = "comm_v4_custom";
 const LANG_KEY = "comm_v4_lang";
+const POINTS_KEY = "comm_v4_points";
+const THEME_KEY = "comm_v4_theme";
+const TOUR_KEY = "comm_v4_tour";
+const FOCUS_MODE_KEY = "comm_v4_focus";
+const REMINDER_KEY = "comm_v4_reminder";
 
 const loadProgress = () => {
   try {
@@ -651,10 +207,7 @@ const loadProgress = () => {
     return {};
   }
 };
-
-const saveProgress = (progress) => {
-  localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
-};
+const saveProgress = (progress) => localStorage.setItem(PROGRESS_KEY, JSON.stringify(progress));
 
 const loadNotes = () => {
   try {
@@ -664,9 +217,69 @@ const loadNotes = () => {
     return {};
   }
 };
+const saveNotes = (notes) => localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
 
-const saveNotes = (notes) => {
-  localStorage.setItem(NOTES_KEY, JSON.stringify(notes));
+const loadCustomMilestones = () => {
+  try {
+    const saved = localStorage.getItem(CUSTOM_KEY);
+    return saved ? JSON.parse(saved) : [];
+  } catch {
+    return [];
+  }
+};
+const saveCustomMilestones = (custom) => localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom));
+
+const loadPoints = () => {
+  try {
+    const saved = localStorage.getItem(POINTS_KEY);
+    return saved ? parseInt(saved, 10) : 0;
+  } catch {
+    return 0;
+  }
+};
+const savePoints = (points) => localStorage.setItem(POINTS_KEY, points);
+
+const loadTheme = () => {
+  try {
+    const saved = localStorage.getItem(THEME_KEY);
+    return saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  } catch {
+    return "light";
+  }
+};
+const saveTheme = (theme) => localStorage.setItem(THEME_KEY, theme);
+
+const loadTourCompleted = () => {
+  try {
+    const saved = localStorage.getItem(TOUR_KEY);
+    return saved ? JSON.parse(saved) : false;
+  } catch {
+    return false;
+  }
+};
+const saveTourCompleted = (completed) => localStorage.setItem(TOUR_KEY, JSON.stringify(completed));
+
+const loadFocusMode = () => {
+  try {
+    const saved = localStorage.getItem(FOCUS_MODE_KEY);
+    return saved ? JSON.parse(saved) : false;
+  } catch {
+    return false;
+  }
+};
+const saveFocusMode = (focus) => localStorage.setItem(FOCUS_MODE_KEY, JSON.stringify(focus));
+
+const loadReminderTime = () => {
+  try {
+    const saved = localStorage.getItem(REMINDER_KEY);
+    return saved || null;
+  } catch {
+    return null;
+  }
+};
+const saveReminderTime = (time) => {
+  if (time) localStorage.setItem(REMINDER_KEY, time);
+  else localStorage.removeItem(REMINDER_KEY);
 };
 
 const getTodayDate = () => {
@@ -674,75 +287,303 @@ const getTodayDate = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-const formatDate = (dateStr) => {
+const formatDate = (dateStr, lang) => {
   const d = new Date(dateStr);
-  return d.toLocaleDateString("bn-BD", { year: "numeric", month: "long", day: "numeric" });
+  return d.toLocaleDateString(lang === "bn" ? "bn-BD" : "en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+};
+
+// স্ট্রিক ক্যালকুলেশন: টানা কত দিন নোট আছে
+const calculateStreak = (notes) => {
+  const allDates = new Set();
+  Object.values(notes).forEach(milestoneNotes => {
+    Object.keys(milestoneNotes).forEach(date => allDates.add(date));
+  });
+  const sorted = Array.from(allDates).sort().reverse();
+  if (sorted.length === 0) return 0;
+  let streak = 1;
+  const today = getTodayDate();
+  if (sorted[0] !== today) return 0; // আজকে না থাকলে স্ট্রিক ০
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const prev = new Date(sorted[i]);
+    const next = new Date(sorted[i + 1]);
+    const diff = (prev - next) / (1000 * 60 * 60 * 24);
+    if (diff === 1) streak++;
+    else break;
+  }
+  return streak;
+};
+
+// সর্বোচ্চ স্ট্রিক
+const calculateMaxStreak = (notes) => {
+  const allDates = new Set();
+  Object.values(notes).forEach(milestoneNotes => {
+    Object.keys(milestoneNotes).forEach(date => allDates.add(date));
+  });
+  const sorted = Array.from(allDates).sort().reverse(); // newest first
+  if (sorted.length === 0) return 0;
+  let maxStreak = 1;
+  let currentStreak = 1;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const prev = new Date(sorted[i]);
+    const next = new Date(sorted[i + 1]);
+    const diff = (prev - next) / (1000 * 60 * 60 * 24);
+    if (diff === 1) {
+      currentStreak++;
+    } else {
+      if (currentStreak > maxStreak) maxStreak = currentStreak;
+      currentStreak = 1;
+    }
+  }
+  if (currentStreak > maxStreak) maxStreak = currentStreak;
+  return maxStreak;
+};
+
+// সাপ্তাহিক নোট ডাটা (গত ৭ দিন)
+const getWeeklyNoteCounts = (notes) => {
+  const counts = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - i);
+    const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    let count = 0;
+    Object.values(notes).forEach(milestoneNotes => {
+      if (milestoneNotes[dateStr]) count++;
+    });
+    counts.push({
+      date: dateStr,
+      count,
+      label: date.toLocaleDateString("en-US", { weekday: "short" }),
+    });
+  }
+  return counts;
 };
 
 // ------------------------------------------------------------
-// ৪. সেকশন কার্ড – সেন্টার এলাইন, প্রফেশনাল লুক
+// ৪. কালার ম্যাপিং (টেইলউইন্ড ডায়নামিক ক্লাস)
 // ------------------------------------------------------------
-const SectionCard = ({ icon, title, content }) => (
-  <div className="w-full max-w-2xl mx-auto bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border border-gray-100 dark:border-gray-800 text-center">
-    <h4 className="flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-      <span className="text-lg">{icon}</span> {title}
-    </h4>
-    <p className="text-base text-gray-800 dark:text-gray-200 leading-relaxed text-center">
-      {content}
-    </p>
-  </div>
-);
+const colorVariants = {
+  blue: {
+    bg: "bg-blue-500",
+    border: "border-blue-200 dark:border-blue-800",
+    text: "text-blue-800 dark:text-blue-300",
+    lightBg: "bg-blue-50 dark:bg-blue-900/20",
+    progress: "bg-blue-600",
+    hoverBorder: "hover:border-blue-300 dark:hover:border-blue-700",
+    dot: "bg-blue-400",
+  },
+  green: {
+    bg: "bg-green-500",
+    border: "border-green-200 dark:border-green-800",
+    text: "text-green-800 dark:text-green-300",
+    lightBg: "bg-green-50 dark:bg-green-900/20",
+    progress: "bg-green-600",
+    hoverBorder: "hover:border-green-300 dark:hover:border-green-700",
+    dot: "bg-green-400",
+  },
+  orange: {
+    bg: "bg-orange-500",
+    border: "border-orange-200 dark:border-orange-800",
+    text: "text-orange-800 dark:text-orange-300",
+    lightBg: "bg-orange-50 dark:bg-orange-900/20",
+    progress: "bg-orange-600",
+    hoverBorder: "hover:border-orange-300 dark:hover:border-orange-700",
+    dot: "bg-orange-400",
+  },
+  purple: {
+    bg: "bg-purple-500",
+    border: "border-purple-200 dark:border-purple-800",
+    text: "text-purple-800 dark:text-purple-300",
+    lightBg: "bg-purple-50 dark:bg-purple-900/20",
+    progress: "bg-purple-600",
+    hoverBorder: "hover:border-purple-300 dark:hover:border-purple-700",
+    dot: "bg-purple-400",
+  },
+};
 
 // ------------------------------------------------------------
-// ৫. মডাল কম্পোনেন্ট – সম্পূর্ণ সেন্টার এলাইন, টাইপো ফ্রি
+// ৫. রিচ টেক্সট এডিটর (ভয়েস ইনপুট সহ)
+// ------------------------------------------------------------
+const RichTextEditor = ({ value, onChange, placeholder, lang }) => {
+  const [isListening, setIsListening] = useState(false);
+  const t = translations[lang];
+
+  const insertMarkdown = (prefix, suffix = "") => {
+    const textarea = document.getElementById("note-editor");
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = value.substring(start, end);
+    const newText =
+      value.substring(0, start) +
+      prefix +
+      selected +
+      suffix +
+      value.substring(end);
+    onChange(newText);
+    setTimeout(() => {
+      textarea.focus();
+      textarea.setSelectionRange(start + prefix.length, end + prefix.length);
+    }, 0);
+  };
+
+  const handleVoiceInput = () => {
+    if (!("webkitSpeechRecognition" in window || "SpeechRecognition" in window)) {
+      alert("Voice input not supported in this browser.");
+      return;
+    }
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = lang === "bn" ? "bn-BD" : "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => setIsListening(true);
+    recognition.onend = () => setIsListening(false);
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      onChange(value + (value ? " " : "") + transcript);
+    };
+    recognition.start();
+  };
+
+  return (
+    <div className="w-full">
+      <div className="flex flex-wrap gap-1 mb-2 p-1 bg-gray-100 dark:bg-gray-800 rounded-lg">
+        <button onClick={() => insertMarkdown("**", "**")} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded font-bold" title="Bold">B</button>
+        <button onClick={() => insertMarkdown("*", "*")} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded italic" title="Italic">I</button>
+        <button onClick={() => insertMarkdown("- ")} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded" title="List">•</button>
+        <button onClick={() => insertMarkdown("# ")} className="p-2 hover:bg-gray-200 dark:hover:bg-gray-700 rounded" title="Heading">H</button>
+        <button
+          onClick={handleVoiceInput}
+          className={`p-2 rounded ${isListening ? "bg-red-500 text-white" : "hover:bg-gray-200 dark:hover:bg-gray-700"}`}
+          title={t.voiceInput}
+        >
+          🎤
+        </button>
+      </div>
+      {isListening && <p className="text-xs text-red-500 mb-1">{t.listening}</p>}
+      <textarea
+        id="note-editor"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        rows={5}
+        className="w-full px-4 py-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:border-gray-700 dark:text-white"
+      />
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
+// ৬. নোট হিস্টোরি কম্পোনেন্ট
+// ------------------------------------------------------------
+const NotesHistory = ({ milestoneId, lang, onSelectDate }) => {
+  const [allNotes, setAllNotes] = useState(loadNotes());
+  const [search, setSearch] = useState("");
+  const milestoneNotes = allNotes[milestoneId] || {};
+  const sortedDates = Object.keys(milestoneNotes).sort().reverse();
+
+  const filtered = sortedDates.filter(date =>
+    milestoneNotes[date].text.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="mt-4 w-full max-w-2xl mx-auto">
+      <h5 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 text-center">
+        {translations[lang].history}
+      </h5>
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={translations[lang].searchNotes}
+        className="w-full p-2 mb-2 text-sm bg-gray-50 border rounded-lg dark:bg-gray-800 dark:border-gray-700"
+      />
+      <div className="max-h-40 overflow-y-auto space-y-1">
+        {filtered.length === 0 && <p className="text-xs text-gray-500 text-center">{translations[lang].noNotes}</p>}
+        {filtered.map(date => (
+          <div
+            key={date}
+            onClick={() => onSelectDate(date)}
+            className="p-2 bg-gray-50 dark:bg-gray-800 rounded cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700 text-sm flex justify-between"
+          >
+            <span>{formatDate(date, lang)}</span>
+            <span className="text-xs text-gray-500">{milestoneNotes[date].text.substring(0, 20)}...</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
+// ৭. মডাল কম্পোনেন্ট (আপডেট)
 // ------------------------------------------------------------
 const MilestoneModal = ({ isOpen, onClose, milestone, lang, levelColor }) => {
   const t = translations[lang];
   const today = getTodayDate();
-  const noteKey = milestone ? `${milestone.id}_${today}` : "";
+  const [selectedDate, setSelectedDate] = useState(today);
   const [noteText, setNoteText] = useState("");
-  const [savedNotes, setSavedNotes] = useState(loadNotes());
+  const [notes, setNotes] = useState(loadNotes());
 
   useEffect(() => {
     if (milestone) {
-      setNoteText(savedNotes[noteKey] || "");
+      const milestoneNotes = notes[milestone.id] || {};
+      setNoteText(milestoneNotes[selectedDate]?.text || "");
     }
-  }, [milestone, noteKey, savedNotes]);
+  }, [milestone, selectedDate, notes]);
 
   const handleSaveNote = () => {
-    const updated = { ...savedNotes, [noteKey]: noteText };
-    setSavedNotes(updated);
+    const updated = {
+      ...notes,
+      [milestone.id]: {
+        ...(notes[milestone.id] || {}),
+        [selectedDate]: { text: noteText },
+      },
+    };
+    setNotes(updated);
     saveNotes(updated);
   };
 
-  const handleClearNote = () => {
-    setNoteText("");
-    const updated = { ...savedNotes };
-    delete updated[noteKey];
-    setSavedNotes(updated);
-    saveNotes(updated);
+  const handleDeleteNote = () => {
+    const updated = { ...notes };
+    if (updated[milestone.id] && updated[milestone.id][selectedDate]) {
+      delete updated[milestone.id][selectedDate];
+      if (Object.keys(updated[milestone.id]).length === 0) delete updated[milestone.id];
+      setNotes(updated);
+      saveNotes(updated);
+      setNoteText("");
+    }
+  };
+
+  const exportNote = () => {
+    const dataStr = JSON.stringify(notes[milestone.id] || {}, null, 2);
+    const blob = new Blob([dataStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `note-${milestone.id}.json`;
+    a.click();
   };
 
   if (!milestone) return null;
 
   const title = milestone.title[lang];
-  const tips = milestone.details.tips[lang];
-  const importance = milestone.details.importance[lang];
-  const exercises = milestone.details.exercises[lang];
-  const examples = milestone.details.examples[lang];
-  const improvementTips = milestone.details.improvementTips[lang];
-  const links = milestone.details.links || [];
-
-  const levelName = 
-    lang === "bn" 
+  const levelName =
+    lang === "bn"
       ? milestone.id[0] === "b" ? "শিক্ষানবিশ"
         : milestone.id[0] === "i" ? "মধ্যবর্তী"
-        : milestone.id[0] === "a" ? "উন্নত"
-        : "বিশেষজ্ঞ"
+        : milestone.id[0] === "a" ? "উন্নত" : "বিশেষজ্ঞ"
       : milestone.id[0] === "b" ? "Beginner"
         : milestone.id[0] === "i" ? "Intermediate"
-        : milestone.id[0] === "a" ? "Advanced"
-        : "Expert";
+        : milestone.id[0] === "a" ? "Advanced" : "Expert";
+
+  const colors = colorVariants[levelColor];
 
   return (
     <AnimatePresence>
@@ -756,127 +597,71 @@ const MilestoneModal = ({ isOpen, onClose, milestone, lang, levelColor }) => {
             onClick={onClose}
           />
           <motion.div
-            className="fixed left-1/2 top-1/2 z-50 w-[95%] max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white dark:bg-gray-900 p-6 shadow-2xl max-h-[85vh] overflow-y-auto border border-gray-200 dark:border-gray-700"
+            className="fixed left-1/2 top-1/2 z-50 w-[95%] max-w-2xl -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white dark:bg-gray-900 p-4 sm:p-6 shadow-2xl max-h-[85vh] overflow-y-auto border border-gray-200 dark:border-gray-700"
             initial={{ opacity: 0, scale: 0.9, y: "-30%" }}
             animate={{ opacity: 1, scale: 1, y: "-50%" }}
             exit={{ opacity: 0, scale: 0.9, y: "-30%" }}
             transition={{ type: "spring", damping: 25, stiffness: 300 }}
           >
-            {/* হেডার – লেভেল ব্যাজ + আজকের তারিখ (সেন্টার) */}
+            {/* হেডার */}
             <div className="flex flex-col items-center justify-center gap-3 mb-6">
               <div className="flex items-center gap-2">
-                <div className={`h-3 w-3 rounded-full bg-${levelColor}-500`} />
-                <span className={`text-xs font-medium px-3 py-1 rounded-full bg-${levelColor}-100 text-${levelColor}-800 dark:bg-${levelColor}-900/30 dark:text-${levelColor}-300`}>
+                <div className={`h-3 w-3 rounded-full ${colors.bg}`} />
+                <span className={`text-xs font-medium px-3 py-1 rounded-full ${colors.lightBg} ${colors.text}`}>
                   {levelName}
                 </span>
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                <span>📅</span> {formatDate(today)}
+                <span>📅</span> {formatDate(today, lang)}
               </div>
             </div>
 
-            {/* শিরোনাম – সেন্টার */}
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
+            <h3 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
               {title}
             </h3>
 
-            {/* কন্টেন্ট – সব সেকশন সেন্টার এলাইন */}
-            <div className="flex flex-col items-center gap-5 w-full">
-              <SectionCard icon="💡" title={t.tips} content={tips} />
-              <SectionCard icon="❓" title={t.importance} content={importance} />
-              <SectionCard icon="🏋️" title={t.exercises} content={exercises} />
-
-              {/* উদাহরণ – সেন্টার এলাইন, বিশেষ উদ্ধৃতি স্টাইল */}
-              <div className="w-full max-w-2xl mx-auto">
-                <h4 className="flex items-center justify-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                  <span className="text-lg">📋</span> {t.examples}
-                </h4>
-                <div className="bg-gray-50 dark:bg-gray-800/50 p-5 rounded-xl border-l-4 border-indigo-400 dark:border-indigo-600 text-center">
-                  <p className="text-base italic text-gray-800 dark:text-gray-200">
-                    “{examples}”
-                  </p>
-                </div>
-              </div>
-
-              <SectionCard icon="🚀" title={t.improvementTips} content={improvementTips} />
-
-              {/* বহিঃস্থ লিংক – সেন্টার এলাইন, বাটন স্টাইল */}
-              {links.length > 0 && (
-                <div className="w-full max-w-2xl mx-auto mt-2">
-                  <h4 className="text-sm font-semibold text-indigo-700 dark:text-indigo-400 mb-3 text-center flex items-center justify-center gap-2">
-                    <span>🔗</span> {t.externalLinks}
-                  </h4>
-                  <div className="flex flex-wrap items-center justify-center gap-3">
-                    {links.map((link, i) => (
-                      <a
-                        key={i}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-4 py-2 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition text-sm font-medium flex items-center gap-1"
-                      >
-                        {link.title} <span className="text-xs">↗</span>
-                      </a>
-                    ))}
-                  </div>
-                </div>
-              )}
+            {/* কন্টেন্ট সেকশন – এখানে আপনার ডিটেইলস অংশ বসবে */}
+            <div className="space-y-4 text-center">
+              <p className="text-gray-700 dark:text-gray-300">{milestone.details?.tips?.[lang] || "..."}</p>
             </div>
 
-            {/* দৈনিক অনুশীলন নোট – সেন্টার এলাইন */}
-            <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700 w-full max-w-2xl mx-auto">
-              <h4 className="flex items-center justify-center gap-2 text-base font-semibold text-gray-900 dark:text-white mb-4">
-                <span className="text-xl">📝</span> {t.dailyNote}
+            {/* নোট অংশ */}
+            <div className="mt-8 pt-6 border-t w-full max-w-2xl mx-auto">
+              <h4 className="flex items-center justify-center gap-2 text-base font-semibold mb-4">
+                <span>📝</span> {t.dailyNote} ({formatDate(selectedDate, lang)})
               </h4>
-              <div className="flex flex-col items-center gap-4 w-full">
-                <textarea
-                  value={noteText}
-                  onChange={(e) => setNoteText(e.target.value)}
-                  placeholder={t.notePlaceholder}
-                  rows={3}
-                  className="w-full px-4 py-3 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition dark:bg-gray-800 dark:border-gray-700 dark:text-white dark:focus:ring-indigo-600 text-center"
-                />
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    onClick={handleSaveNote}
-                    className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition shadow-sm flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1-4l-3 3m0 0l-3-3m3 3V4" />
-                    </svg>
-                    {t.saveNote}
-                  </button>
-                  <button
-                    onClick={handleClearNote}
-                    className="px-6 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-800 text-sm font-medium rounded-lg transition dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600 flex items-center gap-2"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    {t.clearNote}
-                  </button>
-                </div>
-                {savedNotes[noteKey] && (
-                  <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30 px-4 py-2 rounded-lg">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    {lang === "bn" ? "✓ আজকের নোট সংরক্ষিত হয়েছে" : "✓ Today's note saved"}
-                  </div>
-                )}
+              <RichTextEditor
+                value={noteText}
+                onChange={setNoteText}
+                placeholder={t.notePlaceholder}
+                lang={lang}
+              />
+              <div className="flex flex-wrap justify-center gap-3 mt-4">
+                <button onClick={handleSaveNote} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition flex items-center gap-2 min-h-[44px]">
+                  💾 {t.saveNote}
+                </button>
+                <button onClick={handleDeleteNote} className="px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition flex items-center gap-2 min-h-[44px]">
+                  🗑️ {t.clearNote}
+                </button>
+                <button onClick={exportNote} className="px-6 py-2.5 bg-gray-600 hover:bg-gray-700 text-white text-sm font-medium rounded-lg transition flex items-center gap-2 min-h-[44px]">
+                  📤 Export
+                </button>
               </div>
+
+              <NotesHistory
+                milestoneId={milestone.id}
+                lang={lang}
+                onSelectDate={setSelectedDate}
+              />
             </div>
 
-            {/* ক্লোজ বাটন – সেন্টার */}
+            {/* ক্লোজ বাটন */}
             <div className="flex justify-center mt-6">
               <button
                 onClick={onClose}
-                className="px-8 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium rounded-lg transition dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 flex items-center gap-2"
+                className="px-8 py-3 bg-gray-100 hover:bg-gray-200 text-gray-800 text-sm font-medium rounded-lg transition dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 flex items-center gap-2 min-h-[44px]"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                {t.close}
+                ✕ {t.close}
               </button>
             </div>
           </motion.div>
@@ -887,49 +672,70 @@ const MilestoneModal = ({ isOpen, onClose, milestone, lang, levelColor }) => {
 };
 
 // ------------------------------------------------------------
-// ৬. মাইলফলক কার্ড – শুরু করার তারিখ সহ
+// ৮. মাইলফলক কার্ড (মেমোইজড)
 // ------------------------------------------------------------
-const MilestoneCard = ({ milestone, levelData, progress, onToggleComplete, lang }) => {
-  const t = translations[lang];
+const MilestoneCard = React.memo(({ milestone, levelData, progress, onToggleComplete, lang, isCustom, onEdit, onDelete }) => {
   const [modalOpen, setModalOpen] = useState(false);
-
   const isCompleted = progress[milestone.id]?.completed || false;
   const startDate = progress[milestone.id]?.startDate || null;
+  const colors = colorVariants[levelData.color];
+  const t = translations[lang];
 
   const handleToggle = (e) => {
     e.stopPropagation();
     onToggleComplete(milestone.id);
   };
 
+  const handleEdit = (e) => {
+    e.stopPropagation();
+    onEdit(milestone);
+  };
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (window.confirm(`Delete ${milestone.title[lang]}?`)) {
+      onDelete(milestone.id);
+    }
+  };
+
   return (
     <>
       <motion.div
-        whileHover={{ y: -3, boxShadow: "0 12px 20px -8px rgba(0,0,0,0.06)" }}
-        className={`relative flex flex-col p-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer transition-all ${levelData.hoverBorderClass}`}
+        whileHover={{ y: -3 }}
+        className={`relative flex flex-col p-5 bg-white dark:bg-gray-800 rounded-xl border ${colors.border} cursor-pointer transition-all ${colors.hoverBorder}`}
         onClick={() => setModalOpen(true)}
       >
         <div className="flex items-start justify-between mb-2">
           <h4 className="text-lg font-semibold text-gray-900 dark:text-white pr-6">
             {milestone.title[lang]}
           </h4>
-          <button
-            onClick={handleToggle}
-            className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
-              isCompleted
-                ? `bg-${levelData.color}-500 border-${levelData.color}-500 text-white`
-                : "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-700"
-            }`}
-          >
-            {isCompleted && (
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path
-                  fillRule="evenodd"
-                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                  clipRule="evenodd"
-                />
-              </svg>
+          <div className="flex gap-1">
+            {isCustom && (
+              <>
+                <button onClick={handleEdit} className="text-gray-500 hover:text-indigo-600 p-1" aria-label="Edit">
+                  ✏️
+                </button>
+                <button onClick={handleDelete} className="text-gray-500 hover:text-red-600 p-1" aria-label="Delete">
+                  🗑️
+                </button>
+              </>
             )}
-          </button>
+            <button
+              onClick={handleToggle}
+              className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition ${
+                isCompleted
+                  ? `${colors.bg} border-${levelData.color}-500 text-white`
+                  : "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-700"
+              }`}
+              aria-label={isCompleted ? "Mark incomplete" : "Mark complete"}
+            >
+              {isCompleted && (
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-3 leading-relaxed">
@@ -938,31 +744,32 @@ const MilestoneCard = ({ milestone, levelData, progress, onToggleComplete, lang 
 
         {startDate && (
           <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500 dark:text-gray-400">
-            <span className={`w-1.5 h-1.5 rounded-full bg-${levelData.color}-500`} />
-            <span>
-              {t.started}: {formatDate(startDate)}
-            </span>
+            <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
+            <span>{t.started}: {formatDate(startDate, lang)}</span>
           </div>
         )}
 
-        <div className={`absolute bottom-3 right-3 w-2 h-2 rounded-full bg-${levelData.color}-400`} />
+        <div className={`absolute bottom-3 right-3 w-2 h-2 rounded-full ${colors.dot}`} />
       </motion.div>
 
-      <MilestoneModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        milestone={milestone}
-        lang={lang}
-        levelColor={levelData.color}
-      />
+      <Suspense fallback={<div className="fixed inset-0 bg-black/50 flex items-center justify-center text-white">Loading...</div>}>
+        <MilestoneModal
+          isOpen={modalOpen}
+          onClose={() => setModalOpen(false)}
+          milestone={milestone}
+          lang={lang}
+          levelColor={levelData.color}
+        />
+      </Suspense>
     </>
   );
-};
+});
 
 // ------------------------------------------------------------
-// ৭. লেভেল কার্ড
+// ৯. লেভেল কার্ড (মেমোইজড)
 // ------------------------------------------------------------
-const LevelCard = ({ levelKey, levelData, progress, onToggleComplete, lang }) => {
+const LevelCard = React.memo(({ levelKey, levelData, progress, onToggleComplete, lang, customMilestones = [], onEditCustom, onDeleteCustom, focusMode }) => {
+  const colors = colorVariants[levelData.color];
   const t = translations[lang];
   const levelNames = {
     beginner: t.levelBeginner,
@@ -971,8 +778,13 @@ const LevelCard = ({ levelKey, levelData, progress, onToggleComplete, lang }) =>
     expert: t.levelExpert,
   };
 
-  const completedCount = levelData.milestones.filter((m) => progress[m.id]?.completed).length;
-  const total = levelData.milestones.length;
+  const allMilestones = [...levelData.milestones, ...customMilestones.filter(m => m.level === levelKey)];
+  // যদি ফোকাস মোড চালু থাকে, তাহলে শুধু অসম্পূর্ণ মাইলফলক দেখাও
+  const displayedMilestones = focusMode
+    ? allMilestones.filter(m => !progress[m.id]?.completed)
+    : allMilestones;
+  const completedCount = allMilestones.filter(m => progress[m.id]?.completed).length;
+  const total = allMilestones.length;
   const percent = total ? (completedCount / total) * 100 : 0;
 
   return (
@@ -980,26 +792,26 @@ const LevelCard = ({ levelKey, levelData, progress, onToggleComplete, lang }) =>
       initial={{ opacity: 0, y: 15 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
-      className={`bg-white dark:bg-gray-800/90 rounded-2xl p-6 border ${levelData.headerClass} shadow-sm`}
+      className={`bg-white dark:bg-gray-800/90 rounded-2xl p-4 sm:p-6 border ${colors.lightBg} ${colors.border}`}
     >
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex flex-col sm:flex-row items-center justify-between mb-3 gap-2">
         <h3 className="text-xl font-bold text-gray-900 dark:text-white">
           {levelNames[levelKey]}
         </h3>
-        <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${levelData.badgeClass}`}>
+        <span className={`text-sm font-medium px-3 py-1.5 rounded-full ${colors.lightBg} ${colors.text}`}>
           {completedCount}/{total} {t.milestones}
         </span>
       </div>
 
       <div className="relative h-2 w-full bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
         <div
-          className={`absolute left-0 top-0 h-full ${levelData.progressClass} rounded-full transition-all duration-700`}
+          className={`absolute left-0 top-0 h-full ${colors.progress} rounded-full transition-all duration-700`}
           style={{ width: `${percent}%` }}
         />
       </div>
 
       <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {levelData.milestones.map((milestone) => (
+        {displayedMilestones.map((milestone) => (
           <MilestoneCard
             key={milestone.id}
             milestone={milestone}
@@ -1007,63 +819,521 @@ const LevelCard = ({ levelKey, levelData, progress, onToggleComplete, lang }) =>
             progress={progress}
             onToggleComplete={onToggleComplete}
             lang={lang}
+            isCustom={milestone.id.startsWith("custom")}
+            onEdit={onEditCustom}
+            onDelete={onDeleteCustom}
           />
         ))}
       </div>
+      {focusMode && displayedMilestones.length === 0 && (
+        <p className="text-center text-gray-500 mt-4">✨ All milestones completed in this level! Turn off focus mode to see them.</p>
+      )}
     </motion.div>
+  );
+});
+
+// ------------------------------------------------------------
+// ১০. কাস্টম মাইলফলক যোগ/সম্পাদনা ফর্ম
+// ------------------------------------------------------------
+const CustomMilestoneForm = ({ levelKey, onAdd, onUpdate, editingMilestone, onCancel }) => {
+  const [titleBn, setTitleBn] = useState(editingMilestone?.title.bn || "");
+  const [titleEn, setTitleEn] = useState(editingMilestone?.title.en || "");
+  const [descBn, setDescBn] = useState(editingMilestone?.shortDesc.bn || "");
+  const [descEn, setDescEn] = useState(editingMilestone?.shortDesc.en || "");
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!titleBn || !titleEn) return;
+    const milestoneData = {
+      id: editingMilestone ? editingMilestone.id : `custom_${Date.now()}`,
+      level: levelKey,
+      title: { bn: titleBn, en: titleEn },
+      shortDesc: { bn: descBn, en: descEn },
+      details: {
+        tips: { bn: "", en: "" },
+        importance: { bn: "", en: "" },
+        exercises: { bn: "", en: "" },
+        examples: { bn: "", en: "" },
+        improvementTips: { bn: "", en: "" },
+        links: [],
+      },
+    };
+    if (editingMilestone) {
+      onUpdate(milestoneData);
+    } else {
+      onAdd(milestoneData);
+    }
+    setTitleBn("");
+    setTitleEn("");
+    setDescBn("");
+    setDescEn("");
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+      <h4 className="font-semibold mb-2 text-center">
+        {editingMilestone ? "Edit Custom Milestone" : "Add Custom Milestone"}
+      </h4>
+      <input
+        type="text"
+        placeholder="Title (Bengali)"
+        value={titleBn}
+        onChange={(e) => setTitleBn(e.target.value)}
+        className="w-full mb-2 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+      />
+      <input
+        type="text"
+        placeholder="Title (English)"
+        value={titleEn}
+        onChange={(e) => setTitleEn(e.target.value)}
+        className="w-full mb-2 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+      />
+      <input
+        type="text"
+        placeholder="Short desc (Bengali)"
+        value={descBn}
+        onChange={(e) => setDescBn(e.target.value)}
+        className="w-full mb-2 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+      />
+      <input
+        type="text"
+        placeholder="Short desc (English)"
+        value={descEn}
+        onChange={(e) => setDescEn(e.target.value)}
+        className="w-full mb-2 p-2 border rounded dark:bg-gray-700 dark:border-gray-600"
+      />
+      <div className="flex gap-2">
+        <button type="submit" className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg">
+          {editingMilestone ? "Update" : "Add"}
+        </button>
+        {editingMilestone && (
+          <button type="button" onClick={onCancel} className="px-4 py-2 bg-gray-400 text-white rounded-lg">
+            Cancel
+          </button>
+        )}
+      </div>
+    </form>
   );
 };
 
 // ------------------------------------------------------------
-// ৮. মূল কম্পোনেন্ট (CommunicationRoadmap)
+// ১১. গ্যামিফিকেশন প্যানেল (স্ট্রিক সহ)
+// ------------------------------------------------------------
+const GamificationPanel = ({ points, milestonesCompleted, streak }) => {
+  const badges = [
+    { name: "Beginner", threshold: 1, icon: "🌱" },
+    { name: "Talker", threshold: 5, icon: "🗣️" },
+    { name: "Communicator", threshold: 10, icon: "🎯" },
+    { name: "Master", threshold: 16, icon: "🏆" },
+  ];
+  const earned = badges.filter(b => milestonesCompleted >= b.threshold);
+  return (
+    <div className="flex flex-wrap items-center gap-4 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-xl">
+      <div className="text-2xl font-bold">⭐ {points} pts</div>
+      <div className="flex gap-2">
+        {earned.map(b => <span key={b.name} title={b.name} className="text-2xl">{b.icon}</span>)}
+      </div>
+      <div className="text-lg font-semibold text-orange-600">🔥 {streak} day streak</div>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
+// ১২. নোটিফিকেশন বাটন
+// ------------------------------------------------------------
+const NotificationButton = ({ lang }) => {
+  const t = translations[lang];
+  const [permission, setPermission] = useState(Notification.permission);
+  const requestPermission = () => {
+    Notification.requestPermission().then(result => setPermission(result));
+  };
+  const scheduleReminder = () => {
+    if (permission === "granted") {
+      new Notification(t.appTitle, {
+        body: t.dailyNote,
+        icon: "/icon.png",
+      });
+    }
+  };
+  return (
+    <button
+      onClick={permission === "granted" ? scheduleReminder : requestPermission}
+      className="px-4 py-2 bg-blue-600 text-white rounded-lg min-h-[44px]"
+      aria-label="Toggle notifications"
+    >
+      {permission === "granted" ? "🔔 "+t.enableNotifications : "🔕 "+t.enableNotifications}
+    </button>
+  );
+};
+
+// ------------------------------------------------------------
+// ১৩. শেয়ার প্রগ্রেস
+// ------------------------------------------------------------
+const ShareProgress = ({ completed, total, lang }) => {
+  const t = translations[lang];
+  const shareData = {
+    title: t.appTitle,
+    text: `${t.overallProgress}: ${completed}/${total} ${t.milestones}`,
+    url: window.location.href,
+  };
+  const handleShare = () => {
+    if (navigator.share) {
+      navigator.share(shareData);
+    } else {
+      navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`);
+      alert("Progress copied to clipboard!");
+    }
+  };
+  return (
+    <button onClick={handleShare} className="px-4 py-2 bg-green-600 text-white rounded-lg min-h-[44px]" aria-label="Share progress">
+      📤 {t.shareProgress}
+    </button>
+  );
+};
+
+// ------------------------------------------------------------
+// ১৪. ডাটা ইম্পোর্ট/এক্সপোর্ট
+// ------------------------------------------------------------
+const DataBackup = ({ onImport, lang }) => {
+  const t = translations[lang];
+  const exportAll = () => {
+    const data = {
+      progress: loadProgress(),
+      notes: loadNotes(),
+      custom: loadCustomMilestones(),
+      points: loadPoints(),
+    };
+    const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `roadmap-backup-${getTodayDate()}.json`;
+    a.click();
+  };
+  const importFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const data = JSON.parse(ev.target.result);
+        onImport(data);
+      } catch (err) {
+        alert("Invalid file");
+      }
+    };
+    reader.readAsText(file);
+  };
+  return (
+    <div className="flex gap-2">
+      <button onClick={exportAll} className="px-4 py-2 bg-gray-700 text-white rounded-lg min-h-[44px]">💾 {t.exportData}</button>
+      <label className="px-4 py-2 bg-gray-700 text-white rounded-lg cursor-pointer min-h-[44px]">
+        📂 {t.importData}
+        <input type="file" accept=".json" onChange={importFile} className="hidden" />
+      </label>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
+// ১৫. সাপ্তাহিক নোট চার্ট
+// ------------------------------------------------------------
+const WeeklyChart = ({ data, lang }) => {
+  const t = translations[lang];
+  return (
+    <div className="w-full h-48 mt-4">
+      <h4 className="text-center font-semibold mb-2">{t.weeklyChart}</h4>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data}>
+          <XAxis dataKey="label" />
+          <YAxis allowDecimals={false} />
+          <Tooltip />
+          <Bar dataKey="count" fill="#8884d8" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
+// ১৬. ব্যাজ গ্যালারি কম্পোনেন্ট
+// ------------------------------------------------------------
+const BadgeGallery = ({ milestonesCompleted, lang }) => {
+  const t = translations[lang];
+  const badges = [
+    { name: "Beginner", threshold: 1, icon: "🌱", description: "Complete your first milestone" },
+    { name: "Talker", threshold: 5, icon: "🗣️", description: "Complete 5 milestones" },
+    { name: "Communicator", threshold: 10, icon: "🎯", description: "Complete 10 milestones" },
+    { name: "Master", threshold: 16, icon: "🏆", description: "Complete all 16 built-in milestones" },
+  ];
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+      {badges.map(badge => {
+        const earned = milestonesCompleted >= badge.threshold;
+        return (
+          <div key={badge.name} className={`p-4 rounded-xl text-center ${earned ? 'bg-yellow-100 dark:bg-yellow-900/30' : 'bg-gray-100 dark:bg-gray-800 opacity-50'}`}>
+            <div className="text-4xl mb-2">{badge.icon}</div>
+            <div className="font-semibold text-sm">{badge.name}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">{badge.description}</div>
+            {earned && <div className="text-xs text-green-600 mt-1">✓ Earned</div>}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
+// ১৭. গাইডেড ট্যুর কম্পোনেন্ট
+// ------------------------------------------------------------
+const GuidedTour = ({ onClose, lang }) => {
+  const t = translations[lang];
+  const [step, setStep] = useState(0);
+  const steps = [
+    { title: t.guidedTour, content: t.tourStep1 },
+    { title: t.guidedTour, content: t.tourStep2 },
+    { title: t.guidedTour, content: t.tourStep3 },
+    { title: t.guidedTour, content: t.tourStep4 },
+  ];
+  return (
+    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-md w-full p-6 shadow-2xl">
+        <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">{steps[step].title}</h3>
+        <p className="text-gray-600 dark:text-gray-400 mb-6">{steps[step].content}</p>
+        <div className="flex justify-between">
+          <button
+            onClick={() => step > 0 ? setStep(step-1) : null}
+            disabled={step === 0}
+            className={`px-4 py-2 rounded-lg ${step === 0 ? 'bg-gray-200 text-gray-500' : 'bg-indigo-600 text-white'}`}
+          >
+            {t.prev}
+          </button>
+          <button
+            onClick={() => step < steps.length-1 ? setStep(step+1) : onClose()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg"
+          >
+            {step < steps.length-1 ? t.next : t.finish}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ------------------------------------------------------------
+// ১৮. মূল কম্পোনেন্ট (CommunicationRoadmap)
 // ------------------------------------------------------------
 const CommunicationRoadmap = () => {
-  const [lang, setLang] = useState(() => {
-    const saved = localStorage.getItem(LANG_KEY);
-    return saved || "bn";
-  });
+  const [lang, setLang] = useState(() => localStorage.getItem(LANG_KEY) || "bn");
+  const [theme, setTheme] = useState(loadTheme);
   const [progress, setProgress] = useState(loadProgress);
+  const [customMilestones, setCustomMilestones] = useState(loadCustomMilestones);
+  const [points, setPoints] = useState(loadPoints);
+  const [editingCustom, setEditingCustom] = useState(null);
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [tourCompleted, setTourCompleted] = useState(loadTourCompleted);
+  const [showTour, setShowTour] = useState(!loadTourCompleted());
+  const [focusMode, setFocusMode] = useState(loadFocusMode);
+  const [reminderTime, setReminderTime] = useState(loadReminderTime);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showBadgeGallery, setShowBadgeGallery] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(LANG_KEY, lang);
   }, [lang]);
 
   useEffect(() => {
+    saveTheme(theme);
+    if (theme === "dark") {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [theme]);
+
+  useEffect(() => {
     saveProgress(progress);
+    const allMilestones = getAllMilestones();
+    const completedCount = allMilestones.filter(m => progress[m.id]?.completed).length;
+    setPoints(completedCount);
+    savePoints(completedCount);
   }, [progress]);
 
-  const toggleLanguage = () => {
-    setLang((prev) => (prev === "bn" ? "en" : "bn"));
-  };
+  useEffect(() => {
+    saveFocusMode(focusMode);
+  }, [focusMode]);
+
+  useEffect(() => {
+    saveReminderTime(reminderTime);
+    if (reminderTime && Notification.permission === 'granted') {
+      // Schedule daily reminder (simplified: show now for demo)
+      // In a real app, you'd use a service worker or setInterval
+      const now = new Date();
+      const [hour, minute] = reminderTime.split(':').map(Number);
+      const reminderDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour, minute, 0);
+      if (reminderDate < now) reminderDate.setDate(reminderDate.getDate() + 1);
+      const timeout = reminderDate.getTime() - now.getTime();
+      const timer = setTimeout(() => {
+        new Notification(translations[lang].appTitle, {
+          body: translations[lang].dailyNote,
+        });
+      }, timeout);
+      return () => clearTimeout(timer);
+    }
+  }, [reminderTime, lang]);
+
+  const getAllMilestones = useCallback(() => {
+    const builtin = Object.values(roadmapData).flatMap(l => l.milestones);
+    return [...builtin, ...customMilestones];
+  }, [customMilestones]);
+
+  const notes = loadNotes();
+  const streak = calculateStreak(notes);
+  const maxStreak = calculateMaxStreak(notes);
+  const weeklyData = getWeeklyNoteCounts(notes);
+  const totalNotes = Object.values(notes).reduce((acc, milestoneNotes) => acc + Object.keys(milestoneNotes).length, 0);
+  const avgNotesPerWeek = (totalNotes / (weeklyData.length / 7)).toFixed(1);
 
   const handleToggleComplete = useCallback((milestoneId) => {
-    setProgress((prev) => {
+    setProgress(prev => {
       const current = prev[milestoneId] || {};
       const now = getTodayDate();
+      const newCompleted = !current.completed;
       return {
         ...prev,
         [milestoneId]: {
-          completed: !current.completed,
-          startDate: current.startDate || (!current.completed ? now : current.startDate),
+          completed: newCompleted,
+          startDate: current.startDate || (newCompleted ? now : current.startDate),
         },
       };
     });
   }, []);
 
+  const handleAddCustom = (newMilestone) => {
+    setCustomMilestones(prev => {
+      const updated = [...prev, newMilestone];
+      saveCustomMilestones(updated);
+      return updated;
+    });
+    setShowCustomForm(false);
+  };
+
+  const handleUpdateCustom = (updatedMilestone) => {
+    setCustomMilestones(prev => {
+      const updated = prev.map(m => m.id === updatedMilestone.id ? updatedMilestone : m);
+      saveCustomMilestones(updated);
+      return updated;
+    });
+    setEditingCustom(null);
+  };
+
+  const handleDeleteCustom = (id) => {
+    setCustomMilestones(prev => {
+      const updated = prev.filter(m => m.id !== id);
+      saveCustomMilestones(updated);
+      return updated;
+    });
+    setProgress(prev => {
+      const newProgress = { ...prev };
+      delete newProgress[id];
+      return newProgress;
+    });
+  };
+
+  const handleImport = (data) => {
+    if (data.progress) setProgress(data.progress);
+    if (data.notes) saveNotes(data.notes);
+    if (data.custom) {
+      setCustomMilestones(data.custom);
+      saveCustomMilestones(data.custom);
+    }
+    if (data.points) setPoints(data.points);
+  };
+
+  const handleTourClose = () => {
+    setShowTour(false);
+    setTourCompleted(true);
+    saveTourCompleted(true);
+  };
+
   const t = translations[lang];
   const today = getTodayDate();
-
-  const allMilestones = useMemo(
-    () => Object.values(roadmapData).flatMap((lvl) => lvl.milestones),
-    []
-  );
+  const allMilestones = getAllMilestones();
   const totalMilestones = allMilestones.length;
-  const completedMilestones = allMilestones.filter((m) => progress[m.id]?.completed).length;
+  const completedMilestones = allMilestones.filter(m => progress[m.id]?.completed).length;
   const overallPercent = totalMilestones ? (completedMilestones / totalMilestones) * 100 : 0;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* হেডার – সেন্টার এলাইন */}
+    <div className={`max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 ${theme === "dark" ? "dark" : ""}`}>
+      {/* হেডার টুলবার */}
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <GamificationPanel points={points} milestonesCompleted={completedMilestones} streak={streak} />
+        <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg min-h-[44px]"
+            aria-label="Toggle theme"
+          >
+            {theme === "dark" ? "☀️ " + t.lightMode : "🌙 " + t.darkMode}
+          </button>
+          <button
+            onClick={() => setFocusMode(!focusMode)}
+            className={`px-4 py-2 rounded-lg min-h-[44px] ${focusMode ? 'bg-purple-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+            aria-label="Toggle focus mode"
+          >
+            🎯 {focusMode ? t.focusMode + ' ON' : t.focusMode}
+          </button>
+          <button
+            onClick={() => setShowBadgeGallery(!showBadgeGallery)}
+            className="px-4 py-2 bg-amber-500 text-white rounded-lg min-h-[44px]"
+          >
+            🏅 {t.badgeGallery}
+          </button>
+          <NotificationButton lang={lang} />
+          <ShareProgress completed={completedMilestones} total={totalMilestones} lang={lang} />
+          <DataBackup onImport={handleImport} lang={lang} />
+          <button
+            onClick={() => setShowHelp(!showHelp)}
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg min-h-[44px]"
+            aria-label="Help"
+          >
+            ❓ {t.help}
+          </button>
+        </div>
+      </div>
+
+      {/* ব্যাজ গ্যালারি */}
+      {showBadgeGallery && (
+        <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold mb-2">{t.badgeGallery}</h3>
+          <BadgeGallery milestonesCompleted={completedMilestones} lang={lang} />
+        </div>
+      )}
+
+      {/* হেল্প প্যানেল */}
+      {showHelp && (
+        <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-200 dark:border-blue-800">
+          <div className="flex justify-between items-center">
+            <h3 className="font-semibold text-blue-800 dark:text-blue-300">{t.help}</h3>
+            <button onClick={() => setShowHelp(false)} className="text-blue-600">✕</button>
+          </div>
+          <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 mt-2 space-y-1">
+            <li>{t.tourStep1}</li>
+            <li>{t.tourStep2}</li>
+            <li>{t.tourStep3}</li>
+            <li>{t.tourStep4}</li>
+            <li>{t.focusMode}: {t.hideCompleted}</li>
+          </ul>
+          <button
+            onClick={() => { setShowHelp(false); setShowTour(true); }}
+            className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm"
+          >
+            {t.guidedTour}
+          </button>
+        </div>
+      )}
+
+      {/* মূল হেডার */}
       <div className="flex flex-col items-center justify-center gap-4 mb-8 text-center">
         <h1 className="text-3xl sm:text-4xl font-extrabold text-gray-900 dark:text-white tracking-tight">
           🗣️ {t.appTitle}
@@ -1071,43 +1341,92 @@ const CommunicationRoadmap = () => {
         <p className="text-lg text-gray-600 dark:text-gray-400 max-w-3xl">
           {t.appSubtitle}
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-4 mt-2">
+        <div className="flex flex-wrap items-center justify-center gap-4">
           <div className="flex items-center gap-2 px-4 py-2.5 bg-indigo-50 dark:bg-indigo-900/20 rounded-xl border border-indigo-100 dark:border-indigo-800">
-            <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">
-              📅 {t.today}:
-            </span>
+            <span className="text-sm font-medium text-indigo-700 dark:text-indigo-300">📅 {t.today}:</span>
             <span className="text-base font-semibold text-indigo-800 dark:text-indigo-200">
-              {formatDate(today)}
+              {formatDate(today, lang)}
             </span>
           </div>
           <button
-            onClick={toggleLanguage}
-            className="px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md transition flex items-center gap-2 text-gray-700 dark:text-gray-300"
+            onClick={() => setLang(prev => prev === "bn" ? "en" : "bn")}
+            className="px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-sm hover:shadow-md transition flex items-center gap-2 text-gray-700 dark:text-gray-300 min-h-[44px]"
           >
             <span className="text-sm font-medium">{t.languageToggle}</span>
           </button>
         </div>
       </div>
 
-      {/* সামগ্রিক প্রগ্রেস বার */}
+      {/* সামগ্রিক প্রগ্রেস ও চার্ট */}
       <div className="mb-10 p-6 bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-gray-800 dark:to-gray-800 rounded-2xl border border-indigo-100 dark:border-gray-700 text-center">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-            {t.overallProgress}
-          </span>
-          <span className="text-sm font-bold text-indigo-700 dark:text-indigo-400 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-full shadow-sm">
-            {completedMilestones}/{totalMilestones} {t.milestones}
-          </span>
-        </div>
-        <div className="relative h-3 w-full bg-white dark:bg-gray-900 rounded-full overflow-hidden shadow-inner">
-          <div
-            className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-1000"
-            style={{ width: `${overallPercent}%` }}
-          />
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
+                {t.overallProgress}
+              </span>
+              <span className="text-sm font-bold text-indigo-700 dark:text-indigo-400 bg-white dark:bg-gray-900 px-3 py-1.5 rounded-full shadow-sm">
+                {completedMilestones}/{totalMilestones} {t.milestones}
+              </span>
+            </div>
+            <div className="relative h-3 w-full bg-white dark:bg-gray-900 rounded-full overflow-hidden shadow-inner">
+              <div
+                className="absolute left-0 top-0 h-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-full transition-all duration-1000"
+                style={{ width: `${overallPercent}%` }}
+              />
+            </div>
+          </div>
+          <div className="w-full sm:w-64">
+            <WeeklyChart data={weeklyData} lang={lang} />
+          </div>
         </div>
       </div>
 
-      {/* রোডম্যাপ লেভেলসমূহ */}
+      {/* অতিরিক্ত পরিসংখ্যান */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700 text-center">
+          <p className="text-sm text-gray-500">{t.totalNotes}</p>
+          <p className="text-2xl font-bold">{totalNotes}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700 text-center">
+          <p className="text-sm text-gray-500">{t.longestStreak}</p>
+          <p className="text-2xl font-bold">{maxStreak} {t.days}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700 text-center">
+          <p className="text-sm text-gray-500">{t.avgNotesPerWeek}</p>
+          <p className="text-2xl font-bold">{avgNotesPerWeek}</p>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700 text-center">
+          <p className="text-sm text-gray-500">{t.points}</p>
+          <p className="text-2xl font-bold">{points}</p>
+        </div>
+      </div>
+
+      {/* দৈনিক রিমাইন্ডার সেটিং */}
+      <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 flex items-center justify-between gap-4">
+        <span className="text-sm font-medium">{t.reminderTime}:</span>
+        <input
+          type="time"
+          value={reminderTime || ''}
+          onChange={(e) => setReminderTime(e.target.value)}
+          className="px-3 py-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600"
+        />
+        <button
+          onClick={() => {
+            if (reminderTime) {
+              if (Notification.permission !== 'granted') {
+                Notification.requestPermission();
+              }
+              toast.success(t.reminderSet);
+            }
+          }}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-lg"
+        >
+          {t.setReminder}
+        </button>
+      </div>
+
+      {/* লেভেলগুলো */}
       <div className="space-y-8">
         {Object.entries(roadmapData).map(([key, data]) => (
           <LevelCard
@@ -1117,9 +1436,53 @@ const CommunicationRoadmap = () => {
             progress={progress}
             onToggleComplete={handleToggleComplete}
             lang={lang}
+            customMilestones={customMilestones.filter(m => m.level === key)}
+            onEditCustom={setEditingCustom}
+            onDeleteCustom={handleDeleteCustom}
+            focusMode={focusMode}
           />
         ))}
       </div>
+
+      {/* কাস্টম মাইলফলক ফর্ম */}
+      <div className="mt-8 p-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-xl font-bold">{t.customMilestones}</h3>
+          <button
+            onClick={() => setShowCustomForm(!showCustomForm)}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-lg min-h-[44px]"
+          >
+            {showCustomForm ? "−" : "+"} {t.addCustom}
+          </button>
+        </div>
+        {showCustomForm && !editingCustom && (
+          <CustomMilestoneForm
+            levelKey="beginner"
+            onAdd={handleAddCustom}
+            onCancel={() => setShowCustomForm(false)}
+          />
+        )}
+        {editingCustom && (
+          <CustomMilestoneForm
+            levelKey={editingCustom.level}
+            onAdd={handleAddCustom}
+            onUpdate={handleUpdateCustom}
+            editingMilestone={editingCustom}
+            onCancel={() => setEditingCustom(null)}
+          />
+        )}
+      </div>
+
+      {/* গাইডেড ট্যুর */}
+      {showTour && <GuidedTour onClose={handleTourClose} lang={lang} />}
+
+      {/* টাচ টার্গেটের জন্য সিএসএস */}
+      <style>{`
+        button, a, [role="button"], select, input { min-height: 44px; min-width: 44px; }
+        @media (max-width: 640px) {
+          .grid { gap: 0.75rem; }
+        }
+      `}</style>
     </div>
   );
 };

@@ -40,7 +40,8 @@ const ActivityLog = lazy(() => import('./components/ActivityLog'));
 const WeeklyReview = lazy(() => import('./components/WeeklyReview'));
 const LifeTimer = lazy(() => import('./components/LifeTimer'));
 const History = lazy(() => import('./components/History'));
-const Roadmap = lazy(() => import('./components/Roadmap'));
+// ⚠️ গুরুত্বপূর্ণ: RoadmapContainer ইম্পোর্ট করুন (Roadmap নয়)
+const RoadmapContainer = lazy(() => import('./components/Roadmap'));
 const SettingsPanel = lazy(() => import('./components/SettingsPanel'));
 const LearningRoadmap = lazy(() => import('./components/LearningRoadmap'));
 const CommunicationRoadmap = lazy(() => import('./components/CommunicationRoadmap'));
@@ -53,10 +54,47 @@ const PageLoader = () => (
   </div>
 );
 
+// Error Boundary কম্পোনেন্ট (ঐচ্ছিক কিন্তু সুপারিশকৃত)
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Caught error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-8 text-center">
+          <AlertTriangle className="mx-auto text-red-500 mb-4" size={48} />
+          <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Something went wrong</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-4">Please refresh the page or try again later.</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+          >
+            Refresh
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <AppContent />
+      <ErrorBoundary>
+        <AppContent />
+      </ErrorBoundary>
     </BrowserRouter>
   );
 }
@@ -147,12 +185,10 @@ function AppContent() {
 
   // ---------- Initial load and storage event listener ----------
   useEffect(() => {
-    // Load initial data
     loadStats();
     loadGoals();
     loadTasks();
 
-    // Listen to storage changes from other tabs/components
     const handleStorageChange = (e) => {
       if (e.key === 'advancedTimeBlocks') {
         loadTasks();
@@ -238,7 +274,6 @@ function AppContent() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Only if not typing in an input/textarea
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
       if (e.ctrlKey && e.key === 'h') {
@@ -271,7 +306,6 @@ function AppContent() {
     const lastBackup = localStorage.getItem('lastBackupDate');
     const today = new Date().toISOString().split('T')[0];
     if (!lastBackup) {
-      // First time – set a reminder after 7 days
       localStorage.setItem('lastBackupDate', today);
     } else {
       const daysSince = Math.floor((new Date() - new Date(lastBackup)) / (1000 * 60 * 60 * 24));
@@ -471,6 +505,7 @@ function AppContent() {
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                 className="lg:hidden p-2 rounded-lg text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                aria-label="Toggle menu"
               >
                 {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
@@ -647,7 +682,8 @@ function AppContent() {
                 <Route path="/blocks" element={<TimeBlockManager />} />
                 <Route path="/weekly" element={<WeeklyReview />} />
                 <Route path="/history" element={<History language={appLanguage} />} />
-                <Route path="/roadmap" element={<Roadmap />} />
+                {/* ✅ সঠিকভাবে RoadmapContainer ব্যবহার করা হয়েছে */}
+                <Route path="/roadmap" element={<RoadmapContainer />} />
                 <Route path="/learning" element={<LearningRoadmap />} />
                 <Route path="/communication" element={<CommunicationRoadmap />} />
                 <Route path="/lifetimer" element={<LifeTimer birthDate={birthDate} />} />

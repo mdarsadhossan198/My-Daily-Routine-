@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Heart, Target } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { Heart, Target, Trash2, Edit } from 'lucide-react';
+import { differenceInMilliseconds, differenceInYears, differenceInMonths, differenceInDays, differenceInHours, differenceInMinutes, differenceInSeconds, intervalToDuration } from 'date-fns';
 
-const LifeTimer = ({ birthDate }) => {
-  const [language, setLanguage] = useState('en');
+const LifeTimer = ({ birthDate, lifeExpectancyYears = 80 }) => {
+  const [language, setLanguage] = useState(() => localStorage.getItem('language') || 'en');
   const [isPaused, setIsPaused] = useState(false);
   const [birthTime, setBirthTime] = useState({
     totalMs: 0,
@@ -14,12 +15,14 @@ const LifeTimer = ({ birthDate }) => {
     seconds: 0,
     milliseconds: 0,
   });
-  const [goals, setGoals] = useState([]); // [{ id, title, deadline, remaining }]
+  const [goals, setGoals] = useState([]);
+  const [editingGoal, setEditingGoal] = useState(null); // { id, title, deadline }
 
   const birthAnimationRef = useRef();
   const goalsAnimationRef = useRef();
 
-  const t = (key) => {
+  // Translations
+  const t = useMemo(() => {
     const translations = {
       en: {
         lifeTimer: 'Life Timer',
@@ -49,6 +52,12 @@ const LifeTimer = ({ birthDate }) => {
         secondsRemaining: 'seconds',
         goalCompleted: 'Goal Completed! 🎉',
         noGoal: 'No goals set. Go to Settings to add goals.',
+        lifeProgress: 'Life Progress',
+        of: 'of',
+        delete: 'Delete',
+        edit: 'Edit',
+        save: 'Save',
+        cancel: 'Cancel',
       },
       bn: {
         lifeTimer: 'জীবন টাইমার',
@@ -78,84 +87,110 @@ const LifeTimer = ({ birthDate }) => {
         secondsRemaining: 'সেকেন্ড',
         goalCompleted: 'লক্ষ্য পূরণ হয়েছে! 🎉',
         noGoal: 'কোনো লক্ষ্য নির্ধারিত নেই। সেটিংসে গিয়ে লক্ষ্য যোগ করুন।',
+        lifeProgress: 'জীবনের অগ্রগতি',
+        of: 'এর মধ্যে',
+        delete: 'মুছুন',
+        edit: 'সম্পাদনা',
+        save: 'সংরক্ষণ',
+        cancel: 'বাতিল',
       },
     };
-    return translations[language][key] || key;
-  };
+    return (key) => translations[language][key] || key;
+  }, [language]);
 
-  // গোল ডাটা লোড
+  // Save language preference
   useEffect(() => {
-    const loadGoals = () => {
-      const stored = localStorage.getItem('goalsList');
-      if (stored) {
-        try {
-          const parsed = JSON.parse(stored);
-          // প্রতিটি গোলের জন্য remaining অবজেক্ট যোগ করা
-          const goalsWithRemaining = parsed.map(g => ({
-            ...g,
-            remaining: {}
-          }));
-          setGoals(goalsWithRemaining);
-        } catch (e) {
-          console.error('Error parsing goalsList', e);
-          setGoals([]);
-        }
-      } else {
+    localStorage.setItem('language', language);
+  }, [language]);
+
+  // Load goals from localStorage
+  const loadGoals = useCallback(() => {
+    const stored = localStorage.getItem('goalsList');
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        // Ensure each goal has an id and remaining object
+        const goalsWithMeta = parsed.map(g => ({
+          ...g,
+          id: g.id || crypto.randomUUID?.() || Date.now() + Math.random(),
+          remaining: {}
+        }));
+        setGoals(goalsWithMeta);
+      } catch (e) {
+        console.error('Error parsing goalsList', e);
         setGoals([]);
       }
-    };
-    loadGoals();
-    const interval = setInterval(loadGoals, 2000);
-    return () => clearInterval(interval);
+    } else {
+      setGoals([]);
+    }
   }, []);
 
-  // জন্ম টাইমার
+  // Initial load and listen to storage changes (cross-tab sync)
+  useEffect(() => {
+    loadGoals();
+    const handleStorageChange = (e) => {
+      if (e.key === 'goalsList') loadGoals();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, [loadGoals]);
+
+  // Save goals to localStorage whenever they change (for deletion/editing)
+  useEffect(() => {
+    localStorage.setItem('goalsList', JSON.stringify(goals.map(({ remaining, ...rest }) => rest)));
+  }, [goals]);
+
+  // Delete goal
+  const deleteGoal = (id) => {
+    if (window.confirm(t('delete') + '?')) {
+      setGoals(prev => prev.filter(g => g.id !== id));
+    }
+  };
+
+  // Edit goal (simple inline form)
+  const startEdit = (goal) => {
+    setEditingGoal({ ...goal });
+  };
+
+  const saveEdit = () => {
+    if (!editingGoal.title || !editingGoal.deadline) return;
+    setGoals(prev => prev.map(g => g.id === editingGoal.id ? { ...editingGoal } : g));
+    setEditingGoal(null);
+  };
+
+  const cancelEdit = () => setEditingGoal(null);
+
+  // Update birth timer using date-fns for accuracy
   useEffect(() => {
     if (!birthDate) return;
 
     const updateBirthTimer = () => {
       const birth = new Date(birthDate);
       const now = new Date();
-      const diff = now.getTime() - birth.getTime();
+      const diffMs = differenceInMilliseconds(now, birth);
 
-      if (diff < 0) {
+      if (diffMs < 0) {
         setBirthTime({ totalMs: 0, years: 0, months: 0, days: 0, hours: 0, minutes: 0, seconds: 0, milliseconds: 0 });
         return;
       }
 
-      const totalMs = diff;
-      const years = diff / (1000 * 60 * 60 * 24 * 365.25);
-      const wholeYears = Math.floor(years);
-      const remainingAfterYears = diff % (1000 * 60 * 60 * 24 * 365.25);
-
-      const months = remainingAfterYears / (1000 * 60 * 60 * 24 * 30.44);
-      const wholeMonths = Math.floor(months);
-      const remainingAfterMonths = remainingAfterYears % (1000 * 60 * 60 * 24 * 30.44);
-
-      const days = remainingAfterMonths / (1000 * 60 * 60 * 24);
-      const wholeDays = Math.floor(days);
-      const remainingAfterDays = remainingAfterMonths % (1000 * 60 * 60 * 24);
-
-      const hours = remainingAfterDays / (1000 * 60 * 60);
-      const wholeHours = Math.floor(hours);
-      const remainingAfterHours = remainingAfterDays % (1000 * 60 * 60);
-
-      const minutes = remainingAfterHours / (1000 * 60);
-      const wholeMinutes = Math.floor(minutes);
-      const remainingAfterMinutes = remainingAfterHours % (1000 * 60);
-
-      const seconds = remainingAfterMinutes / 1000;
-      const wholeSeconds = Math.floor(seconds);
-      const milliseconds = Math.floor(remainingAfterMinutes % 1000);
+      const duration = intervalToDuration({ start: birth, end: now });
+      const years = duration.years || 0;
+      const months = duration.months || 0;
+      const days = duration.days || 0;
+      const hours = duration.hours || 0;
+      const minutes = duration.minutes || 0;
+      const seconds = duration.seconds || 0;
+      const milliseconds = diffMs % 1000;
 
       setBirthTime({
-        totalMs,
-        years: wholeYears,
-        months: wholeMonths,
-        days: wholeDays,
-        hours: wholeHours,
-        minutes: wholeMinutes,
-        seconds: wholeSeconds,
+        totalMs: diffMs,
+        years,
+        months,
+        days,
+        hours,
+        minutes,
+        seconds,
         milliseconds,
       });
 
@@ -173,13 +208,12 @@ const LifeTimer = ({ birthDate }) => {
     };
   }, [birthDate, isPaused]);
 
-  // গোল কাউন্টডাউন আপডেট
+  // Update goal countdowns
   useEffect(() => {
     const updateGoals = () => {
       setGoals(prevGoals =>
         prevGoals.map(goal => {
           if (!goal.deadline) return goal;
-
           const now = new Date();
           const deadline = new Date(goal.deadline);
           const diff = deadline.getTime() - now.getTime();
@@ -196,7 +230,6 @@ const LifeTimer = ({ birthDate }) => {
           return { ...goal, remaining: { days, hours, minutes, seconds } };
         })
       );
-
       goalsAnimationRef.current = requestAnimationFrame(updateGoals);
     };
 
@@ -209,41 +242,16 @@ const LifeTimer = ({ birthDate }) => {
         cancelAnimationFrame(goalsAnimationRef.current);
       }
     };
-  }, [isPaused, goals]); // নির্ভরশীলতা goals? – আমরা goals আপডেট করছি, কিন্তু goals পরিবর্তন হলে পুনরায় ইফেক্ট চালু হবে। তবে updateGoals-এ আমরা setGoals করছি, যা infinite loop তৈরি করতে পারে। তাই goals-কে ডিপেন্ডেন্সি থেকে বাদ দেওয়া উচিত, কারণ আমরা চাই প্রতিটি ফ্রেমে আপডেট হোক। ডিপেন্ডেন্সি অ্যারেতে শুধু isPaused থাকবে।
+  }, [isPaused]);
 
-  // উপরের ইফেক্ট ঠিক করা: goals ডিপেন্ডেন্সি সরিয়ে দিচ্ছি, কারণ আমরা চাই এনিমেশন লুপ চলতে থাকুক। কিন্তু setGoals-এর কারণে রি-রেন্ডার হবে, আর নতুন goals নিয়ে আবার এনিমেশন কল হবে। এটি চক্রাকার না হওয়ার জন্য আমরা `goals`-কে ডিপেন্ডেন্সি থেকে বাদ দিই, কিন্তু তখন updateGoals-এর ভিতরে `goals` পুরনো ক্লোজারে আটকে যাবে। তাই `setGoals`-এ ফাংশনাল আপডেট ব্যবহার করছি, যা সবসময়最新 state ব্যবহার করে। এতে কোনো সমস্যা নেই। ডিপেন্ডেন্সি অ্যারেতে শুধু `isPaused` রাখলে চলবে।
-
-  useEffect(() => {
-    const updateGoals = () => {
-      setGoals(prevGoals =>
-        prevGoals.map(goal => {
-          if (!goal.deadline) return goal;
-          const now = new Date();
-          const deadline = new Date(goal.deadline);
-          const diff = deadline.getTime() - now.getTime();
-          if (diff <= 0) {
-            return { ...goal, remaining: { completed: true } };
-          }
-          const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-          const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-          const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-          const seconds = Math.floor((diff % (1000 * 60)) / 1000);
-          return { ...goal, remaining: { days, hours, minutes, seconds } };
-        })
-      );
-      goalsAnimationRef.current = requestAnimationFrame(updateGoals);
-    };
-
-    if (!isPaused) {
-      goalsAnimationRef.current = requestAnimationFrame(updateGoals);
-    }
-
-    return () => {
-      if (goalsAnimationRef.current) {
-        cancelAnimationFrame(goalsAnimationRef.current);
-      }
-    };
-  }, [isPaused]); // শুধু isPaused ডিপেন্ডেন্সি
+  // Life progress percentage
+  const lifeProgress = useMemo(() => {
+    if (!birthDate) return 0;
+    const birth = new Date(birthDate);
+    const now = new Date();
+    const yearsLived = differenceInYears(now, birth);
+    return Math.min(100, (yearsLived / lifeExpectancyYears) * 100);
+  }, [birthDate, birthTime.years, lifeExpectancyYears]);
 
   const formatNumber = (num) => {
     return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -262,8 +270,8 @@ const LifeTimer = ({ birthDate }) => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* ভাষা ও কন্ট্রোল */}
+    <div className="space-y-6 p-4 sm:p-6 max-w-7xl mx-auto" aria-live="polite">
+      {/* Language and Controls */}
       <div className="flex flex-wrap justify-between items-center gap-4">
         <div className="flex gap-2">
           <button
@@ -295,104 +303,137 @@ const LifeTimer = ({ birthDate }) => {
         </button>
       </div>
 
-      {/* জন্ম টাইমার */}
-      <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl p-8 text-white shadow-2xl">
+      {/* Life Timer Card */}
+      <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-xl p-6 sm:p-8 text-white shadow-2xl">
         <div className="flex items-center gap-3 mb-6">
           <Heart className="w-8 h-8 text-white/80" />
-          <h2 className="text-3xl font-bold">{t('timeLived')}</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold">{t('timeLived')}</h2>
         </div>
+
+        {/* Total milliseconds */}
         <div className="text-center mb-6">
-          <div className="text-5xl md:text-6xl font-mono font-bold tracking-wider">
+          <div className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-mono font-bold tracking-wider break-all">
             {formatNumber(birthTime.totalMs)}
           </div>
-          <p className="text-sm text-white/70 mt-2">{t('millisecondsSinceBirth')}</p>
+          <p className="text-xs sm:text-sm text-white/70 mt-2">{t('millisecondsSinceBirth')}</p>
         </div>
-        <div className="grid grid-cols-4 md:grid-cols-7 gap-4 text-center">
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{birthTime.years}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('years')}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{birthTime.months}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('months')}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{birthTime.days}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('days')}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{birthTime.hours}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('hours')}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{birthTime.minutes}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('minutes')}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{birthTime.seconds}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('seconds')}</div>
-          </div>
-          <div className="bg-white/10 backdrop-blur-sm rounded-lg p-3">
-            <div className="text-3xl font-bold">{birthTime.milliseconds}</div>
-            <div className="text-xs uppercase tracking-wider text-white/70">{t('ms')}</div>
-          </div>
+
+        {/* Timer units grid - responsive */}
+        <div className="grid grid-cols-2 xs:grid-cols-4 sm:grid-cols-7 gap-2 sm:gap-4 text-center">
+          {[
+            { label: t('years'), value: birthTime.years },
+            { label: t('months'), value: birthTime.months },
+            { label: t('days'), value: birthTime.days },
+            { label: t('hours'), value: birthTime.hours },
+            { label: t('minutes'), value: birthTime.minutes },
+            { label: t('seconds'), value: birthTime.seconds },
+            { label: t('ms'), value: birthTime.milliseconds },
+          ].map((unit, idx) => (
+            <div key={idx} className="bg-white/10 backdrop-blur-sm rounded-lg p-2 sm:p-3">
+              <div className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold">{unit.value}</div>
+              <div className="text-[0.6rem] sm:text-xs uppercase tracking-wider text-white/70">{unit.label}</div>
+            </div>
+          ))}
         </div>
-        <div className="mt-6 text-sm text-white/70 flex justify-between items-center">
+
+        {/* Born / Today */}
+        <div className="mt-6 text-xs sm:text-sm text-white/70 flex flex-wrap justify-between items-center">
           <div>{t('born')}: {new Date(birthDate).toLocaleDateString()}</div>
           <div>{t('today')}: {new Date().toLocaleDateString()}</div>
         </div>
+
+        {/* Life Progress Bar */}
+        <div className="mt-6">
+          <div className="flex justify-between text-xs sm:text-sm text-white/70 mb-1">
+            <span>{t('lifeProgress')}</span>
+            <span>{Math.round(lifeProgress)}% {t('of')} {lifeExpectancyYears} {t('years')}</span>
+          </div>
+          <div className="w-full bg-white/30 rounded-full h-2.5">
+            <div className="bg-white h-2.5 rounded-full transition-all duration-300" style={{ width: `${lifeProgress}%` }}></div>
+          </div>
+        </div>
       </div>
 
-      {/* গোল কাউন্টডাউন লিস্ট */}
+      {/* Goals List */}
       {goals.length > 0 ? (
         <div className="space-y-4">
-          {goals.map((goal, index) => (
-            <div key={index} className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl p-6 text-white shadow-2xl">
-              <div className="flex items-center gap-3 mb-4">
-                <Target className="w-6 h-6 text-white/80" />
-                <h2 className="text-2xl font-bold">{t('goalCountdown')} #{index + 1}</h2>
-              </div>
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-                <div>
-                  <p className="text-sm text-white/70">{t('goalTitle')}</p>
-                  <p className="text-xl font-bold">{goal.title}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-white/70">{t('deadline')}</p>
-                  <p className="text-lg font-semibold">{new Date(goal.deadline).toLocaleDateString()}</p>
-                </div>
-              </div>
-              {goal.remaining.completed ? (
-                <div className="text-center py-4">
-                  <p className="text-4xl mb-2">🎉</p>
-                  <p className="text-xl font-bold">{t('goalCompleted')}</p>
+          {goals.map((goal) => (
+            <div key={goal.id} className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl p-6 text-white shadow-2xl">
+              {editingGoal?.id === goal.id ? (
+                // Inline edit form
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    value={editingGoal.title}
+                    onChange={(e) => setEditingGoal({ ...editingGoal, title: e.target.value })}
+                    className="w-full p-2 rounded bg-white/20 text-white placeholder-white/50 border border-white/30"
+                    placeholder={t('goalTitle')}
+                  />
+                  <input
+                    type="date"
+                    value={editingGoal.deadline}
+                    onChange={(e) => setEditingGoal({ ...editingGoal, deadline: e.target.value })}
+                    className="w-full p-2 rounded bg-white/20 text-white border border-white/30"
+                  />
+                  <div className="flex gap-2">
+                    <button onClick={saveEdit} className="px-4 py-2 bg-green-500 rounded hover:bg-green-600 transition">
+                      {t('save')}
+                    </button>
+                    <button onClick={cancelEdit} className="px-4 py-2 bg-gray-500 rounded hover:bg-gray-600 transition">
+                      {t('cancel')}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
-                  <div className="text-center mb-4">
-                    <p className="text-sm text-white/70">{t('remaining')}</p>
-                    <div className="text-4xl md:text-5xl font-mono font-bold tracking-wider">
-                      {goal.remaining.days}d {goal.remaining.hours}h {goal.remaining.minutes}m {goal.remaining.seconds}s
+                  <div className="flex items-center gap-3 mb-4">
+                    <Target className="w-6 h-6 text-white/80" />
+                    <h2 className="text-xl sm:text-2xl font-bold">{t('goalCountdown')}</h2>
+                  </div>
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
+                    <div className="flex-1">
+                      <p className="text-xs sm:text-sm text-white/70">{t('goalTitle')}</p>
+                      <p className="text-base sm:text-lg font-bold break-words">{goal.title}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div>
+                        <p className="text-xs sm:text-sm text-white/70">{t('deadline')}</p>
+                        <p className="text-sm sm:text-base font-semibold">{new Date(goal.deadline).toLocaleDateString()}</p>
+                      </div>
+                      <button onClick={() => startEdit(goal)} className="p-2 hover:bg-white/20 rounded transition">
+                        <Edit className="w-5 h-5" />
+                      </button>
+                      <button onClick={() => deleteGoal(goal.id)} className="p-2 hover:bg-white/20 rounded transition">
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     </div>
                   </div>
-                  <div className="grid grid-cols-4 gap-3 text-center">
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
-                      <div className="text-2xl font-bold">{goal.remaining.days}</div>
-                      <div className="text-xs uppercase tracking-wider text-white/70">{t('daysRemaining')}</div>
+
+                  {goal.remaining.completed ? (
+                    <div className="text-center py-4">
+                      <p className="text-4xl mb-2">🎉</p>
+                      <p className="text-lg sm:text-xl font-bold">{t('goalCompleted')}</p>
                     </div>
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
-                      <div className="text-2xl font-bold">{goal.remaining.hours}</div>
-                      <div className="text-xs uppercase tracking-wider text-white/70">{t('hoursRemaining')}</div>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
-                      <div className="text-2xl font-bold">{goal.remaining.minutes}</div>
-                      <div className="text-xs uppercase tracking-wider text-white/70">{t('minutesRemaining')}</div>
-                    </div>
-                    <div className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
-                      <div className="text-2xl font-bold">{goal.remaining.seconds}</div>
-                      <div className="text-xs uppercase tracking-wider text-white/70">{t('secondsRemaining')}</div>
-                    </div>
-                  </div>
+                  ) : (
+                    <>
+                      <div className="text-center mb-4">
+                        <p className="text-xs sm:text-sm text-white/70">{t('remaining')}</p>
+                        <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-mono font-bold tracking-wider overflow-x-auto whitespace-nowrap pb-1">
+                          {goal.remaining.days}d {goal.remaining.hours}h {goal.remaining.minutes}m {goal.remaining.seconds}s
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-4 gap-2 sm:gap-3 text-center">
+                        {['days', 'hours', 'minutes', 'seconds'].map((unit) => (
+                          <div key={unit} className="bg-white/10 backdrop-blur-sm rounded-lg p-2">
+                            <div className="text-lg sm:text-xl md:text-2xl font-bold">{goal.remaining[unit]}</div>
+                            <div className="text-[0.6rem] sm:text-xs uppercase tracking-wider text-white/70">
+                              {t(unit + 'Remaining')}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </>
               )}
             </div>

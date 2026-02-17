@@ -6,7 +6,8 @@ import {
   Heart, BookOpen, Briefcase, Dumbbell, Home, Palette,
   Users, DollarSign, Download, Upload, Target, TrendingUp,
   Award, Sun, Bell, BellOff, Grid, List, Filter, Settings,
-  RotateCcw
+  RotateCcw, Sparkles, Volume2, TrendingUp as TrendingIcon,
+  BarChart2
 } from 'lucide-react';
 
 const STORAGE_KEY = 'advancedTimeBlocks';
@@ -60,7 +61,20 @@ const ActivityLog = () => {
     const saved = localStorage.getItem('defaultDuration');
     return saved ? parseInt(saved, 10) : 25;
   });
+  const [soundOption, setSoundOption] = useState(() => {
+    const saved = localStorage.getItem('soundOption');
+    return saved || 'bell';
+  });
+  const [dailyGoal, setDailyGoal] = useState(() => {
+    const saved = localStorage.getItem('dailyGoal');
+    return saved ? parseInt(saved, 10) : 5;
+  });
+  const [focusMode, setFocusMode] = useState(() => {
+    const saved = localStorage.getItem('focusMode');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [showSettings, setShowSettings] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
   const audioRef = useRef(null);
@@ -71,6 +85,27 @@ const ActivityLog = () => {
   const [weekCompleted, setWeekCompleted] = useState(0);
   const [totalTimeSpentToday, setTotalTimeSpentToday] = useState(0);
   const [totalTimeSpentWeek, setTotalTimeSpentWeek] = useState(0);
+  const [productivityScore, setProductivityScore] = useState(0);
+
+  // ---------- Responsive grid columns ----------
+  useEffect(() => {
+    const handleResize = () => {
+      const width = window.innerWidth;
+      if (width < 640) {
+        setGridColumns(1);
+      } else {
+        const saved = localStorage.getItem('activityLogGridColumns');
+        if (saved) {
+          setGridColumns(parseInt(saved, 10));
+        } else {
+          setGridColumns(3);
+        }
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // ---------- Load from storage ----------
   const loadTimeBlocks = () => {
@@ -113,7 +148,9 @@ const ActivityLog = () => {
     localStorage.setItem('sortBy', sortBy);
   }, [sortBy]);
   useEffect(() => {
-    localStorage.setItem('activityLogGridColumns', gridColumns.toString());
+    if (window.innerWidth >= 640) {
+      localStorage.setItem('activityLogGridColumns', gridColumns.toString());
+    }
   }, [gridColumns]);
   useEffect(() => {
     localStorage.setItem('notificationsEnabled', JSON.stringify(notificationsEnabled));
@@ -127,6 +164,15 @@ const ActivityLog = () => {
   useEffect(() => {
     localStorage.setItem('defaultDuration', defaultDuration.toString());
   }, [defaultDuration]);
+  useEffect(() => {
+    localStorage.setItem('soundOption', soundOption);
+  }, [soundOption]);
+  useEffect(() => {
+    localStorage.setItem('dailyGoal', dailyGoal.toString());
+  }, [dailyGoal]);
+  useEffect(() => {
+    localStorage.setItem('focusMode', JSON.stringify(focusMode));
+  }, [focusMode]);
 
   // Load timer from localStorage
   useEffect(() => {
@@ -235,6 +281,13 @@ const ActivityLog = () => {
     }
   };
 
+  const setTimerPreset = (minutes) => {
+    if (!activeTimer) return;
+    setTimerSeconds(minutes * 60);
+    setTimerPaused(false);
+    setTimerStartTime(Date.now());
+  };
+
   // Keyboard shortcut
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -274,41 +327,41 @@ const ActivityLog = () => {
   };
 
   const toggleComplete = (id, date = getTodayDate(), silent = false) => {
-    const updatedBlocks = timeBlocks.map(block => {
-      if (block.id !== id) return block;
-      const newCompletedDates = { ...(block.completedDates || {}) };
-      if (newCompletedDates[date]) {
-        delete newCompletedDates[date];
-      } else {
-        newCompletedDates[date] = true;
+    setTimeBlocks(prev => {
+      const updated = prev.map(block => {
+        if (block.id !== id) return block;
+        const newCompletedDates = { ...(block.completedDates || {}) };
+        if (newCompletedDates[date]) {
+          delete newCompletedDates[date];
+        } else {
+          newCompletedDates[date] = true;
+        }
+        return {
+          ...block,
+          completedDates: newCompletedDates,
+          lastModified: new Date().toISOString()
+        };
+      });
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      if (!silent) {
+        const task = updated.find(b => b.id === id);
+        const isCompletedNow = task.completedDates?.[date] || false;
+        toast.success(isCompletedNow ? 'Task completed! 🎉' : 'Task uncompleted');
       }
-      return {
-        ...block,
-        completedDates: newCompletedDates,
-        lastModified: new Date().toISOString()
-      };
+      return updated;
     });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedBlocks));
-    setTimeBlocks(updatedBlocks);
-    if (!silent) {
-      const task = updatedBlocks.find(b => b.id === id);
-      const isCompletedNow = task.completedDates?.[date] || false;
-      toast.success(isCompletedNow ? 'Task completed! 🎉' : 'Task uncompleted');
-    }
   };
 
-  // ---------- Filter today's tasks ----------
+  // ---------- Filter today's tasks (FIXED) ----------
   const getTodayTasks = () => {
     const todayStr = getTodayDate();
     const dayIndexToId = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const todayDayAbbr = dayIndexToId[new Date(todayStr).getDay()];
 
     return timeBlocks.filter(block => {
-      // One-time task
       if (block.date === todayStr) return true;
-      // Recurring task (repeats array)
+      if (block.repeatType === 'daily') return true;
       if (block.repeats && block.repeats.includes(todayDayAbbr)) return true;
-      // scheduledDay (if used)
       if (block.scheduledDay === todayDayAbbr) return true;
       return false;
     });
@@ -347,7 +400,7 @@ const ActivityLog = () => {
   const filteredTasks = getFilteredTasks();
   const displayedTasks = getSortedTasks(filteredTasks);
 
-  // Statistics calculation (only for today)
+  // Statistics calculation
   useEffect(() => {
     const todayStr = getTodayDate();
     const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
@@ -381,9 +434,15 @@ const ActivityLog = () => {
     setWeekCompleted(weekCount);
     setTotalTimeSpentToday(todayMinutes);
     setTotalTimeSpentWeek(weekMinutes);
-  }, [timeBlocks]);
 
-  // Constants (categories, priorities)
+    // Productivity score: weighted average of completion rate and time
+    const rate = todayTasks.length ? (todayCount / todayTasks.length) * 100 : 0;
+    const timeScore = Math.min(100, (todayMinutes / (dailyGoal * 25)) * 100); // assuming 25 min per task
+    const score = Math.round((rate * 0.7 + timeScore * 0.3));
+    setProductivityScore(score);
+  }, [timeBlocks, dailyGoal]);
+
+  // Constants
   const categories = [
     { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', borderColor: 'border-blue-200 dark:border-blue-800' },
     { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800' },
@@ -402,7 +461,7 @@ const ActivityLog = () => {
     { id: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800', icon: Zap }
   ];
 
-  const total = todayTasks.length; // total today's tasks
+  const total = todayTasks.length;
   const pending = todayTasks.filter(t => !t.completedDates?.[getTodayDate()]).length;
   const completionRate = total === 0 ? 0 : Math.round(((total - pending) / total) * 100);
 
@@ -474,8 +533,14 @@ const ActivityLog = () => {
   const playSound = () => {
     if (!soundEnabled) return;
     if (!audioRef.current) {
-      audioRef.current = new Audio('https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3');
+      audioRef.current = new Audio();
     }
+    const soundUrls = {
+      bell: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3',
+      chime: 'https://www.soundjay.com/misc/sounds/bell-chime.mp3',
+      digital: 'https://www.soundjay.com/phone/sounds/phone-ring-02.mp3'
+    };
+    audioRef.current.src = soundUrls[soundOption] || soundUrls.bell;
     audioRef.current.play().catch(e => console.log('Audio play failed:', e));
   };
 
@@ -501,16 +566,37 @@ const ActivityLog = () => {
     return () => clearInterval(interval);
   }, [notificationsEnabled, notificationPermission, timeBlocks]);
 
-  // ---------- Render ----------
+  // Heatmap data (last 30 days)
+  const heatmapData = () => {
+    const days = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      let count = 0;
+      timeBlocks.forEach(block => {
+        if (block.completedDates?.[dateStr]) count++;
+      });
+      days.push({ date: dateStr, count });
+    }
+    return days;
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header (same as before) */}
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {getGreeting()}
             </h2>
+            {productivityScore > 0 && (
+              <span className="ml-2 px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full text-sm font-medium shadow-lg flex items-center gap-1">
+                <Sparkles size={16} /> Score {productivityScore}
+              </span>
+            )}
           </div>
           <p className="text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-2">
             <Calendar size={16} className="text-blue-500" />
@@ -518,10 +604,9 @@ const ActivityLog = () => {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {/* Notifications toggle */}
           <button
             onClick={toggleNotifications}
-            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all min-h-[44px] ${
               notificationsEnabled
                 ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
                 : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
@@ -534,7 +619,7 @@ const ActivityLog = () => {
 
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all min-h-[44px]"
             title="Settings"
           >
             <Settings size={16} /> Settings
@@ -543,14 +628,14 @@ const ActivityLog = () => {
           <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
             <button
               onClick={() => setViewMode('list')}
-              className={`p-2 rounded ${viewMode === 'list' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
+              className={`p-2 rounded min-h-[44px] min-w-[44px] ${viewMode === 'list' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
               title="List view"
             >
               <List size={20} />
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-2 rounded ${viewMode === 'grid' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
+              className={`p-2 rounded min-h-[44px] min-w-[44px] ${viewMode === 'grid' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
               title="Grid view"
             >
               <Grid size={20} />
@@ -562,10 +647,17 @@ const ActivityLog = () => {
               {[2, 3, 4].map(cols => (
                 <button
                   key={cols}
-                  onClick={() => setGridColumns(cols)}
-                  className={`px-3 py-1 rounded text-sm font-medium transition ${
+                  onClick={() => {
+                    if (window.innerWidth < 640 && cols > 1) {
+                      toast.error('On mobile, only 1 column is available');
+                      return;
+                    }
+                    setGridColumns(cols);
+                  }}
+                  className={`px-3 py-1 rounded text-sm font-medium transition min-h-[44px] ${
                     gridColumns === cols ? 'bg-white dark:bg-gray-600 shadow' : ''
                   }`}
+                  disabled={window.innerWidth < 640 && cols > 1}
                 >
                   {cols} cols
                 </button>
@@ -574,53 +666,119 @@ const ActivityLog = () => {
           )}
 
           <button
+            onClick={() => setShowHeatmap(!showHeatmap)}
+            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all min-h-[44px]"
+            title="Show heatmap"
+          >
+            <BarChart2 size={16} /> Heatmap
+          </button>
+
+          <button
             onClick={exportData}
-            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all min-h-[44px]"
           >
             <Download size={16} /> Export
           </button>
-          <label className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer">
+          <label className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer min-h-[44px]">
             <Upload size={16} /> Import
             <input type="file" accept=".json" onChange={importData} className="hidden" />
           </label>
         </div>
       </div>
 
+      {/* Heatmap */}
+      {showHeatmap && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2 flex items-center gap-2">
+            <BarChart2 size={16} /> Last 30 Days Completion Heatmap
+          </h3>
+          <div className="grid grid-cols-10 gap-1">
+            {heatmapData().map((day, idx) => {
+              let intensity = day.count === 0 ? 'bg-gray-100 dark:bg-gray-700' :
+                day.count === 1 ? 'bg-green-200 dark:bg-green-800' :
+                day.count === 2 ? 'bg-green-300 dark:bg-green-700' :
+                day.count === 3 ? 'bg-green-400 dark:bg-green-600' :
+                'bg-green-500 dark:bg-green-500';
+              return (
+                <div
+                  key={idx}
+                  className={`w-6 h-6 rounded ${intensity} hover:scale-110 transition-transform cursor-help`}
+                  title={`${day.date}: ${day.count} task${day.count !== 1 ? 's' : ''} completed`}
+                />
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Settings Panel */}
       {showSettings && (
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
           <h3 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-            <Settings size={18} /> Timer Settings
+            <Settings size={18} /> Advanced Settings
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 min-h-[44px]">
               <input
                 type="checkbox"
                 checked={autoCompleteEnabled}
                 onChange={(e) => setAutoCompleteEnabled(e.target.checked)}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              Auto-mark task complete when timer ends
+              Auto-complete on timer end
             </label>
-            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 min-h-[44px]">
               <input
                 type="checkbox"
                 checked={soundEnabled}
                 onChange={(e) => setSoundEnabled(e.target.checked)}
                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
               />
-              Play sound when timer ends
+              Play sound
             </label>
-            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-              <span>Default duration (minutes):</span>
+            <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 min-h-[44px]">
+              <input
+                type="checkbox"
+                checked={focusMode}
+                onChange={(e) => setFocusMode(e.target.checked)}
+                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              Focus mode (blur other tasks)
+            </label>
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 min-h-[44px]">
+              <span>Daily goal:</span>
+              <input
+                type="number"
+                min="1"
+                max="50"
+                value={dailyGoal}
+                onChange={(e) => setDailyGoal(parseInt(e.target.value) || 5)}
+                className="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 min-h-[44px]">
+              <span>Default duration:</span>
               <input
                 type="number"
                 min="1"
                 max="180"
                 value={defaultDuration}
                 onChange={(e) => setDefaultDuration(parseInt(e.target.value) || 25)}
-                className="w-20 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                className="w-16 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
               />
+              <span>min</span>
+            </div>
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 min-h-[44px]">
+              <Volume2 size={16} />
+              <select
+                value={soundOption}
+                onChange={(e) => setSoundOption(e.target.value)}
+                className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              >
+                <option value="bell">Bell</option>
+                <option value="chime">Chime</option>
+                <option value="digital">Digital</option>
+              </select>
             </div>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
@@ -637,7 +795,7 @@ const ActivityLog = () => {
           <div className="flex gap-1">
             <button
               onClick={() => setFilterStatus('all')}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition min-h-[44px] ${
                 filterStatus === 'all'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
@@ -647,7 +805,7 @@ const ActivityLog = () => {
             </button>
             <button
               onClick={() => setFilterStatus('completed')}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition min-h-[44px] ${
                 filterStatus === 'completed'
                   ? 'bg-green-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
@@ -657,7 +815,7 @@ const ActivityLog = () => {
             </button>
             <button
               onClick={() => setFilterStatus('pending')}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition ${
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition min-h-[44px] ${
                 filterStatus === 'pending'
                   ? 'bg-yellow-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200'
@@ -672,7 +830,7 @@ const ActivityLog = () => {
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
-            className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 min-h-[44px]"
           >
             <option value="all">All Categories</option>
             {categories.map(cat => (
@@ -683,7 +841,7 @@ const ActivityLog = () => {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
-            className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+            className="px-3 py-1.5 rounded-lg text-sm border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 min-h-[44px]"
           >
             <option value="time">Sort by Time</option>
             <option value="priority">Sort by Priority</option>
@@ -721,26 +879,38 @@ const ActivityLog = () => {
                     </div>
                   );
                 })()}
+                {/* Quick preset buttons */}
+                <div className="flex gap-2 mt-3">
+                  {[5, 15, 25, 30, 45, 60].map(min => (
+                    <button
+                      key={min}
+                      onClick={() => setTimerPreset(min)}
+                      className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-xs font-medium transition"
+                    >
+                      {min}m
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={pauseTimer}
-                className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30"
+                className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30 min-h-[44px]"
               >
                 {timerPaused ? <Play size={20} /> : <Pause size={20} />}
                 {timerPaused ? 'Resume' : 'Pause'}
               </button>
               <button
                 onClick={resetTimer}
-                className="px-4 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30"
+                className="px-4 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30 min-h-[44px]"
                 title="Reset timer"
               >
                 <RotateCcw size={20} />
               </button>
               <button
                 onClick={stopTimer}
-                className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30"
+                className="px-6 py-3 bg-white/20 hover:bg-white/30 backdrop-blur rounded-xl font-medium flex items-center gap-2 transition-all border border-white/30 min-h-[44px]"
               >
                 <StopCircle size={20} /> Stop
               </button>
@@ -749,79 +919,95 @@ const ActivityLog = () => {
         </div>
       )}
 
-      {/* Statistics Cards (based on today's tasks) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Today's Tasks</p>
-              <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">{total}</p>
+              <p className="text-sm opacity-90">Today's Tasks</p>
+              <p className="text-3xl font-bold mt-1">{total}</p>
             </div>
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-              <Target className="text-blue-600 dark:text-blue-400" size={24} />
-            </div>
+            <Target size={32} className="opacity-80" />
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Completed Today</p>
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400 mt-1">{todayCompleted}</p>
+              <p className="text-sm opacity-90">Completed</p>
+              <p className="text-3xl font-bold mt-1">{todayCompleted}</p>
             </div>
-            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl">
-              <CheckCircle className="text-green-600 dark:text-green-400" size={24} />
-            </div>
+            <CheckCircle size={32} className="opacity-80" />
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Time Today</p>
-              <p className="text-2xl font-bold text-purple-600 dark:text-purple-400 mt-1">
+              <p className="text-sm opacity-90">Time Today</p>
+              <p className="text-2xl font-bold mt-1">
                 {Math.floor(totalTimeSpentToday / 60)}h {totalTimeSpentToday % 60}m
               </p>
             </div>
-            <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-xl">
-              <Clock className="text-purple-600 dark:text-purple-400" size={24} />
-            </div>
+            <Clock size={32} className="opacity-80" />
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
+        <div className="bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">This Week</p>
-              <p className="text-3xl font-bold text-indigo-600 dark:text-indigo-400 mt-1">{weekCompleted}</p>
+              <p className="text-sm opacity-90">This Week</p>
+              <p className="text-3xl font-bold mt-1">{weekCompleted}</p>
             </div>
-            <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-xl">
-              <TrendingUp className="text-indigo-600 dark:text-indigo-400" size={24} />
-            </div>
+            <TrendingUp size={32} className="opacity-80" />
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
+        <div className="bg-gradient-to-br from-amber-500 to-amber-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Week Time</p>
-              <p className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
+              <p className="text-sm opacity-90">Week Time</p>
+              <p className="text-2xl font-bold mt-1">
                 {Math.floor(totalTimeSpentWeek / 60)}h {totalTimeSpentWeek % 60}m
               </p>
             </div>
-            <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-xl">
-              <Award className="text-amber-600 dark:text-amber-400" size={24} />
-            </div>
+            <Award size={32} className="opacity-80" />
           </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-2xl p-5 shadow-lg border border-gray-100 dark:border-gray-700 hover:shadow-xl transition-all">
+        <div className="bg-gradient-to-br from-yellow-500 to-yellow-600 rounded-2xl p-5 text-white shadow-lg hover:shadow-xl transition-all hover:scale-105">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-500 dark:text-gray-400">Pending</p>
-              <p className="text-3xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">{pending}</p>
+              <p className="text-sm opacity-90">Pending</p>
+              <p className="text-3xl font-bold mt-1">{pending}</p>
             </div>
-            <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-xl">
-              <Clock className="text-yellow-600 dark:text-yellow-400" size={24} />
-            </div>
+            <Clock size={32} className="opacity-80" />
           </div>
         </div>
       </div>
+
+      {/* Daily Goal Progress */}
+      {total > 0 && (
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-100 dark:border-blue-800/50">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-500 rounded-full">
+                <Target className="text-white" size={20} />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Daily Goal Progress</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {todayCompleted} of {dailyGoal} tasks • {Math.min(100, Math.round((todayCompleted / dailyGoal) * 100))}%
+                </p>
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+              {Math.min(100, Math.round((todayCompleted / dailyGoal) * 100))}%
+            </div>
+          </div>
+          <div className="mt-4 h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, (todayCompleted / dailyGoal) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Performance Feedback */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -869,45 +1055,6 @@ const ActivityLog = () => {
         </div>
       </div>
 
-      {/* Today's Progress Bar */}
-      {total > 0 && (
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-2xl p-6 border border-blue-100 dark:border-blue-800/50">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500 rounded-full">
-                <Award className="text-white" size={20} />
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 dark:text-white">Today's Progress</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  {todayCompleted} of {total} tasks completed • {completionRate}% done
-                </p>
-              </div>
-            </div>
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {completionRate}%
-            </div>
-          </div>
-          <div className="mt-4 h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
-              style={{ width: `${completionRate}%` }}
-            />
-          </div>
-          <div className="mt-4 flex flex-wrap gap-3 text-sm">
-            {yesterdayCompleted > 0 && (
-              <span className="text-gray-600 dark:text-gray-400">🔙 Yesterday: {yesterdayCompleted} task{yesterdayCompleted > 1 ? 's' : ''}</span>
-            )}
-            {weekCompleted > 0 && (
-              <span className="text-gray-600 dark:text-gray-400">📊 Last 7 days: {weekCompleted} tasks</span>
-            )}
-            {pending > 0 && (
-              <span className="text-gray-600 dark:text-gray-400">{pending} task{pending > 1 ? 's' : ''} remaining. Keep going! 💪</span>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Task List/Grid */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
@@ -934,7 +1081,7 @@ const ActivityLog = () => {
             </p>
           </div>
         ) : viewMode === 'list' ? (
-          // List View (same as before, but using displayedTasks)
+          // List View
           <div className="grid grid-cols-1 gap-4">
             {displayedTasks.map(task => {
               const category = categories.find(c => c.id === task.category);
@@ -955,7 +1102,7 @@ const ActivityLog = () => {
                       : isOverdue
                       ? 'border-red-200 dark:border-red-800/50 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-900/5'
                       : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800/50'
-                  }`}
+                  } ${focusMode && activeTimer && !isActiveTimer ? 'opacity-30' : ''}`}
                 >
                   {isActiveTimer && (
                     <div className="absolute -top-3 -right-3">
@@ -970,7 +1117,7 @@ const ActivityLog = () => {
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
                     <button
                       onClick={() => toggleComplete(task.id, todayStr)}
-                      className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all ${
+                      className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all min-h-[44px] min-w-[44px] ${
                         isCompletedToday
                           ? 'bg-green-500 border-green-500 text-white shadow-md'
                           : 'border-gray-300 dark:border-gray-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20'
@@ -993,20 +1140,20 @@ const ActivityLog = () => {
                             </h4>
                             {priority && (
                               <span
-                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${priority.color} bg-opacity-20 border ${priority.borderColor}`}
+                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${priority.color} bg-opacity-20 border ${priority.borderColor} min-h-[32px]`}
                               >
                                 <PriorityIcon size={12} /> {priority.label}
                               </span>
                             )}
                             {category && (
                               <span
-                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${category.color} bg-opacity-20 border ${category.borderColor}`}
+                                className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${category.color} bg-opacity-20 border ${category.borderColor} min-h-[32px]`}
                               >
                                 <CategoryIcon size={12} /> {category.label}
                               </span>
                             )}
                             {isOverdue && !isCompletedToday && (
-                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800">
+                              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700 border border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800 min-h-[32px]">
                                 <AlertCircle size={12} /> Overdue
                               </span>
                             )}
@@ -1032,7 +1179,7 @@ const ActivityLog = () => {
                               {task.tags.map((tag, idx) => (
                                 <span
                                   key={idx}
-                                  className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs flex items-center gap-1 border border-gray-200 dark:border-gray-600"
+                                  className="px-2.5 py-1 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-xs flex items-center gap-1 border border-gray-200 dark:border-gray-600 min-h-[32px]"
                                 >
                                   <span className="w-1.5 h-1.5 bg-blue-500 rounded-full"></span> {tag}
                                 </span>
@@ -1044,7 +1191,7 @@ const ActivityLog = () => {
                           {!isActiveTimer ? (
                             <button
                               onClick={() => startTimer(task)}
-                              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all ${
+                              className={`px-4 py-2 rounded-xl text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all min-h-[44px] ${
                                 task.date === todayStr
                                   ? 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white'
                                   : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
@@ -1056,20 +1203,20 @@ const ActivityLog = () => {
                             </button>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <div className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-md">
+                              <div className="px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-xl text-sm font-medium flex items-center gap-2 shadow-md min-h-[44px]">
                                 <Timer size={16} className="animate-pulse" />
                                 <span className="font-mono">{formatTime(timerSeconds)}</span>
                               </div>
                               <button
                                 onClick={pauseTimer}
-                                className="p-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded-xl hover:bg-yellow-200 transition-all"
+                                className="p-2 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded-xl hover:bg-yellow-200 transition-all min-h-[44px] min-w-[44px]"
                                 title={timerPaused ? 'Resume' : 'Pause'}
                               >
                                 {timerPaused ? <Play size={20} /> : <Pause size={20} />}
                               </button>
                               <button
                                 onClick={stopTimer}
-                                className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-all"
+                                className="p-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-200 dark:hover:bg-red-900/50 transition-all min-h-[44px] min-w-[44px]"
                                 title="Stop timer"
                               >
                                 <StopCircle size={20} />
@@ -1085,7 +1232,7 @@ const ActivityLog = () => {
             })}
           </div>
         ) : (
-          // Grid View (same as before, but using displayedTasks)
+          // Grid View
           <div
             className="grid gap-4"
             style={{
@@ -1111,7 +1258,7 @@ const ActivityLog = () => {
                       : isOverdue
                       ? 'border-red-200 dark:border-red-800/50 bg-gradient-to-r from-red-50/30 to-transparent dark:from-red-900/5'
                       : 'border-gray-200 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-800/50'
-                  }`}
+                  } ${focusMode && activeTimer && !isActiveTimer ? 'opacity-30' : ''}`}
                 >
                   {isActiveTimer && (
                     <div className="absolute -top-2 -right-2">
@@ -1127,7 +1274,7 @@ const ActivityLog = () => {
                     <div className="flex items-start justify-between mb-2">
                       <button
                         onClick={() => toggleComplete(task.id, todayStr)}
-                        className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                        className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all min-h-[44px] min-w-[44px] ${
                           isCompletedToday
                             ? 'bg-green-500 border-green-500 text-white shadow-md'
                             : 'border-gray-300 dark:border-gray-600 hover:border-green-500'
@@ -1138,14 +1285,14 @@ const ActivityLog = () => {
                       <div className="flex gap-1">
                         {priority && (
                           <span
-                            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${priority.color} bg-opacity-20 border ${priority.borderColor}`}
+                            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${priority.color} bg-opacity-20 border ${priority.borderColor} min-h-[32px]`}
                           >
                             <PriorityIcon size={10} /> {priority.label}
                           </span>
                         )}
                         {category && (
                           <span
-                            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${category.color} bg-opacity-20 border ${category.borderColor}`}
+                            className={`flex items-center gap-0.5 px-2 py-0.5 rounded-full text-xs font-medium ${category.color} bg-opacity-20 border ${category.borderColor} min-h-[32px]`}
                           >
                             <CategoryIcon size={10} /> {category.label}
                           </span>
@@ -1175,7 +1322,7 @@ const ActivityLog = () => {
                       {!isActiveTimer ? (
                         <button
                           onClick={() => startTimer(task)}
-                          className={`px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition-all ${
+                          className={`px-3 py-1 rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm transition-all min-h-[44px] ${
                             task.date === todayStr
                               ? 'bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white'
                               : 'bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed'
@@ -1187,20 +1334,20 @@ const ActivityLog = () => {
                         </button>
                       ) : (
                         <div className="flex items-center gap-1">
-                          <div className="px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm">
+                          <div className="px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg text-xs font-medium flex items-center gap-1 shadow-sm min-h-[44px]">
                             <Timer size={12} className="animate-pulse" />
                             <span className="font-mono text-xs">{formatTime(timerSeconds)}</span>
                           </div>
                           <button
                             onClick={pauseTimer}
-                            className="p-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded hover:bg-yellow-200"
+                            className="p-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 rounded hover:bg-yellow-200 min-h-[44px] min-w-[44px]"
                             title={timerPaused ? 'Resume' : 'Pause'}
                           >
                             {timerPaused ? <Play size={14} /> : <Pause size={14} />}
                           </button>
                           <button
                             onClick={stopTimer}
-                            className="p-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200"
+                            className="p-1 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded hover:bg-red-200 min-h-[44px] min-w-[44px]"
                             title="Stop timer"
                           >
                             <StopCircle size={14} />

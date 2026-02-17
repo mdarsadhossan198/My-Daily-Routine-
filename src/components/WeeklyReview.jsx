@@ -17,13 +17,11 @@ const WeeklyReview = () => {
   const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
   
-  // মডাল ও সিলেকশনের জন্য স্টেট
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [showDayModal, setShowDayModal] = useState(false);
   const [showCategoryModal, setShowCategoryModal] = useState(false);
 
-  // গোল এডিট করার জন্য স্টেট
   const [editingGoalId, setEditingGoalId] = useState(null);
   const [editValue, setEditValue] = useState('');
   const [goalTargets, setGoalTargets] = useState(() => {
@@ -38,7 +36,6 @@ const WeeklyReview = () => {
     return { tasks: 50, focus: 20, rate: 80 };
   });
 
-  // ডেটা লোড ফাংশন
   const loadData = useCallback(() => {
     try {
       const blocks = localStorage.getItem('advancedTimeBlocks');
@@ -50,7 +47,6 @@ const WeeklyReview = () => {
     }
   }, []);
 
-  // মাউন্ট ও স্টোরেজ ইভেন্ট লিসেনার
   useEffect(() => {
     setMounted(true);
     loadData();
@@ -63,12 +59,10 @@ const WeeklyReview = () => {
     return () => window.removeEventListener('storage', handleStorage);
   }, [loadData]);
 
-  // গোল টার্গেট সংরক্ষণ
   useEffect(() => {
     localStorage.setItem('weeklyGoals', JSON.stringify(goalTargets));
   }, [goalTargets]);
 
-  // ---------- লাস্ট ৭ দিন ----------
   const last7Days = useMemo(() => {
     const days = [];
     const today = new Date();
@@ -80,7 +74,6 @@ const WeeklyReview = () => {
     return days;
   }, []);
 
-  // ---------- ডেইলি স্ট্যাটস ----------
   const dailyStats = useMemo(() => {
     return last7Days.map(date => {
       const dayName = new Date(date).toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
@@ -124,16 +117,14 @@ const WeeklyReview = () => {
         completionRate: totalTasks ? Math.round((completedBlocks / totalTasks) * 100) : 0,
         focusTime: Math.round(focusTime * 10) / 10,
         estimatedTime: Math.round(estimatedTime * 10) / 10,
-        blocks: blocksOnDate  // সম্পূর্ণ ব্লক লিস্ট সংরক্ষণ
+        blocks: blocksOnDate
       };
     });
   }, [timeBlocks, last7Days]);
 
-  // ---------- ক্যাটাগরি ডিস্ট্রিবিউশন ----------
   const categoryData = useMemo(() => {
     const categoryMap = new Map();
     timeBlocks.forEach(block => {
-      // শুধু সম্পন্ন ব্লক বিবেচনা করি
       if (block.completedDates && Object.keys(block.completedDates).length > 0) {
         const cat = block.category || 'other';
         const start = block.start?.split(':').map(Number) || [9, 0];
@@ -166,11 +157,9 @@ const WeeklyReview = () => {
     }).filter(c => c.value > 0);
   }, [timeBlocks]);
 
-  // ---------- প্রায়োরিটি ডিস্ট্রিবিউশন (FIXED) ----------
   const priorityData = useMemo(() => {
     const priorityMap = new Map();
     timeBlocks.forEach(block => {
-      // শুধু সম্পন্ন ব্লক বিবেচনা করি
       if (block.completedDates && Object.keys(block.completedDates).length > 0) {
         const pri = block.priority || 'medium';
         priorityMap.set(pri, (priorityMap.get(pri) || 0) + 1);
@@ -189,7 +178,6 @@ const WeeklyReview = () => {
     })).filter(p => p.value > 0);
   }, [timeBlocks]);
 
-  // ---------- সাপ্তাহিক সামারি ----------
   const weeklyStats = useMemo(() => {
     const totalTasks = dailyStats.reduce((sum, d) => sum + d.tasks, 0);
     const totalCompleted = dailyStats.reduce((sum, d) => sum + d.completed, 0);
@@ -212,7 +200,6 @@ const WeeklyReview = () => {
     };
   }, [dailyStats]);
 
-  // ---------- ইনসাইট (রোডম্যাপ) ----------
   const insights = useMemo(() => {
     const roadmap = localStorage.getItem('webDevRoadmap');
     if (!roadmap) return { nextTopic: null, reviewTopics: [], message: 'Complete your roadmap setup!' };
@@ -244,14 +231,12 @@ const WeeklyReview = () => {
     }
   }, []);
 
-  // ---------- গোল ----------
   const goals = useMemo(() => [
     { id: 1, name: 'Weekly Tasks', current: weeklyStats.totalCompleted, target: goalTargets.tasks, unit: 'tasks', key: 'tasks' },
     { id: 2, name: 'Focus Time', current: weeklyStats.totalFocus, target: goalTargets.focus, unit: 'hours', key: 'focus' },
     { id: 3, name: 'Completion Rate', current: weeklyStats.avgCompletion, target: goalTargets.rate, unit: '%', key: 'rate' },
   ], [weeklyStats, goalTargets]);
 
-  // গোল এডিট হ্যান্ডলার
   const startEditGoal = (goal) => {
     setEditingGoalId(goal.id);
     setEditValue(goal.target.toString());
@@ -276,7 +261,6 @@ const WeeklyReview = () => {
     setEditingGoalId(null);
   };
 
-  // ---------- এক্সপোর্ট CSV ----------
   const exportData = () => {
     const csvContent = [
       ['Date', 'Tasks', 'Completed', 'Completion %', 'Focus Time (h)'].join(','),
@@ -291,7 +275,6 @@ const WeeklyReview = () => {
     URL.revokeObjectURL(url);
   };
 
-  // ---------- ক্লিক হ্যান্ডলার ----------
   const handleBarClick = (data) => {
     if (data && data.activePayload && data.activePayload.length > 0) {
       const dayData = data.activePayload[0].payload;
@@ -307,40 +290,40 @@ const WeeklyReview = () => {
     }
   };
 
-  // ---------- মডাল কম্পোনেন্ট ----------
+  // ---------- মডাল কম্পোনেন্ট (মোবাইল অপ্টিমাইজড) ----------
   const DayDetailModal = ({ day, onClose }) => {
     if (!day) return null;
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-          <div className="p-6">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-                {day.displayDate} ({day.day}) Details
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
+                {day.displayDate} ({day.day})
               </h3>
-              <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg min-h-[44px] min-w-[44px]">
                 <X size={20} />
               </button>
             </div>
             <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-2 gap-4">
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Total Tasks</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">{day.tasks}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Total</p>
+                <p className="text-xl font-bold text-gray-900 dark:text-white">{day.tasks}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Completed</p>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400">{day.completed}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Completed</p>
+                <p className="text-xl font-bold text-green-600 dark:text-green-400">{day.completed}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Completion Rate</p>
-                <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{day.completionRate}%</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Rate</p>
+                <p className="text-xl font-bold text-blue-600 dark:text-blue-400">{day.completionRate}%</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Focus Time</p>
-                <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{day.focusTime}h</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Focus</p>
+                <p className="text-xl font-bold text-purple-600 dark:text-purple-400">{day.focusTime}h</p>
               </div>
             </div>
-            <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 text-sm sm:text-base">
               <ListTodo size={18} /> Tasks
             </h4>
             {day.blocks && day.blocks.length > 0 ? (
@@ -350,8 +333,8 @@ const WeeklyReview = () => {
                   return (
                     <div key={block.id} className={`p-3 rounded-lg border ${isCompleted ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/10' : 'border-gray-200 dark:border-gray-700'}`}>
                       <div className="flex items-center gap-2">
-                        {isCompleted ? <CheckCircle size={16} className="text-green-500" /> : <Clock size={16} className="text-gray-400" />}
-                        <span className={`font-medium ${isCompleted ? 'line-through text-gray-500' : 'text-gray-900 dark:text-white'}`}>
+                        {isCompleted ? <CheckCircle size={16} className="text-green-500 flex-shrink-0" /> : <Clock size={16} className="text-gray-400 flex-shrink-0" />}
+                        <span className={`text-sm ${isCompleted ? 'line-through text-gray-500' : 'text-gray-900 dark:text-white'}`}>
                           {block.title}
                         </span>
                       </div>
@@ -365,7 +348,7 @@ const WeeklyReview = () => {
                 })}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-8">No tasks on this day.</p>
+              <p className="text-gray-500 text-center py-8 text-sm">No tasks on this day.</p>
             )}
           </div>
         </div>
@@ -376,38 +359,37 @@ const WeeklyReview = () => {
   const CategoryDetailModal = ({ category, onClose }) => {
     if (!category) return null;
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
-          <div className="p-6">
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="p-4 sm:p-6">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                <span>{category.icon}</span> {category.name} Tasks
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <span>{category.icon}</span> {category.name}
               </h3>
-              <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+              <button onClick={onClose} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg min-h-[44px] min-w-[44px]">
                 <X size={20} />
               </button>
             </div>
             <div className="mb-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Total Time Spent</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Total Time Spent</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{category.value} hours</p>
             </div>
-            <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+            <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2 text-sm sm:text-base">
               <ListTodo size={18} /> Completed Tasks
             </h4>
             {category.blocks && category.blocks.length > 0 ? (
               <div className="space-y-2">
                 {category.blocks.map(block => {
-                  // কোন তারিখে সম্পন্ন হয়েছে তা বের করি
                   const completedDate = block.completedDates ? Object.keys(block.completedDates)[0] : null;
                   return (
                     <div key={block.id} className="p-3 rounded-lg border border-gray-200 dark:border-gray-700">
                       <div className="flex items-center gap-2">
-                        <CheckCircle size={16} className="text-green-500" />
-                        <span className="font-medium text-gray-900 dark:text-white">{block.title}</span>
+                        <CheckCircle size={16} className="text-green-500 flex-shrink-0" />
+                        <span className="text-sm text-gray-900 dark:text-white">{block.title}</span>
                       </div>
                       {completedDate && (
                         <p className="text-xs text-gray-500 mt-1 ml-6">
-                          Completed on: {new Date(completedDate).toLocaleDateString()}
+                          {new Date(completedDate).toLocaleDateString()}
                         </p>
                       )}
                     </div>
@@ -415,7 +397,7 @@ const WeeklyReview = () => {
                 })}
               </div>
             ) : (
-              <p className="text-gray-500 text-center py-8">No tasks in this category.</p>
+              <p className="text-gray-500 text-center py-8 text-sm">No tasks in this category.</p>
             )}
           </div>
         </div>
@@ -432,80 +414,81 @@ const WeeklyReview = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* হেডার */}
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+    <div className="space-y-6 px-2 sm:px-0">
+      {/* হেডার – মোবাইলে স্ট্যাক */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <Calendar className="text-blue-600" />
-            Weekly Review
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <Calendar className="text-blue-600" size={24} />
+            <span>Weekly Review</span>
           </h2>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-sm text-gray-600 dark:text-gray-400">
             {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} • Week {Math.ceil(new Date().getDate() / 7)}
           </p>
         </div>
-        <div className="flex gap-2">
-          <button onClick={exportData} className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 flex items-center gap-2">
-            <Download size={16} />
-            Export CSV
-          </button>
-        </div>
+        <button 
+          onClick={exportData} 
+          className="w-full sm:w-auto px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 flex items-center justify-center gap-2 min-h-[44px]"
+        >
+          <Download size={16} />
+          Export CSV
+        </button>
       </div>
 
-      {/* সামারি কার্ড */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-5 text-white shadow-lg">
+      {/* সামারি কার্ড – মোবাইলে 2 কলাম, ছোট ফন্ট */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-3 sm:p-5 text-white shadow-lg">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm opacity-90">Tasks Completed</p>
-              <p className="text-3xl font-bold mt-1">{weeklyStats.totalCompleted}</p>
-              <p className="text-xs opacity-80 mt-1">out of {weeklyStats.totalTasks}</p>
+              <p className="text-xs opacity-90">Tasks</p>
+              <p className="text-xl sm:text-3xl font-bold mt-1">{weeklyStats.totalCompleted}</p>
+              <p className="text-xs opacity-80 mt-1">of {weeklyStats.totalTasks}</p>
             </div>
-            <CheckCircle size={32} className="opacity-80" />
+            <CheckCircle size={24} className="opacity-80" />
           </div>
           <div className="mt-3 h-1.5 bg-white/30 rounded-full">
             <div className="h-full bg-white rounded-full" style={{ width: `${weeklyStats.avgCompletion}%` }} />
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-5 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-3 sm:p-5 text-white shadow-lg">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm opacity-90">Focus Time</p>
-              <p className="text-3xl font-bold mt-1">{weeklyStats.totalFocus}h</p>
-              <p className="text-xs opacity-80 mt-1">avg {(weeklyStats.totalFocus / 7).toFixed(1)}h/day</p>
+              <p className="text-xs opacity-90">Focus</p>
+              <p className="text-xl sm:text-3xl font-bold mt-1">{weeklyStats.totalFocus}h</p>
+              <p className="text-xs opacity-80 mt-1">avg {(weeklyStats.totalFocus / 7).toFixed(1)}h/d</p>
             </div>
-            <Clock size={32} className="opacity-80" />
+            <Clock size={24} className="opacity-80" />
           </div>
-          <div className="mt-3 flex items-center gap-1">
-            <Zap size={16} />
-            <span className="text-sm">Best day: {weeklyStats.bestDay?.day || '-'}</span>
+          <div className="mt-3 flex items-center gap-1 text-xs">
+            <Zap size={12} />
+            <span>Best: {weeklyStats.bestDay?.day || '-'}</span>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl p-5 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl p-3 sm:p-5 text-white shadow-lg">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm opacity-90">Current Streak</p>
-              <p className="text-3xl font-bold mt-1">{weeklyStats.streak}</p>
+              <p className="text-xs opacity-90">Streak</p>
+              <p className="text-xl sm:text-3xl font-bold mt-1">{weeklyStats.streak}</p>
               <p className="text-xs opacity-80 mt-1">days</p>
             </div>
-            <Award size={32} className="opacity-80" />
+            <Award size={24} className="opacity-80" />
           </div>
-          <div className="mt-3 flex items-center gap-1">
-            <TrendingUp size={16} />
-            <span className="text-sm">Keep it up!</span>
+          <div className="mt-3 flex items-center gap-1 text-xs">
+            <TrendingUp size={12} />
+            <span>Keep it up!</span>
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl p-5 text-white shadow-lg">
+        <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl p-3 sm:p-5 text-white shadow-lg">
           <div className="flex justify-between items-center">
             <div>
-              <p className="text-sm opacity-90">Completion Rate</p>
-              <p className="text-3xl font-bold mt-1">{weeklyStats.avgCompletion}%</p>
-              <p className="text-xs opacity-80 mt-1">+5% vs last week</p>
+              <p className="text-xs opacity-90">Rate</p>
+              <p className="text-xl sm:text-3xl font-bold mt-1">{weeklyStats.avgCompletion}%</p>
+              <p className="text-xs opacity-80 mt-1">+5% vs last</p>
             </div>
-            <Target size={32} className="opacity-80" />
+            <Target size={24} className="opacity-80" />
           </div>
           <div className="mt-3 h-1.5 bg-white/30 rounded-full">
             <div className="h-full bg-white rounded-full" style={{ width: `${Math.min(weeklyStats.avgCompletion, 100)}%` }} />
@@ -513,79 +496,86 @@ const WeeklyReview = () => {
         </div>
       </div>
 
-      {/* ডেইলি ট্রেন্ড চার্ট */}
+      {/* ডেইলি ট্রেন্ড চার্ট – মোবাইলে স্ট্যাক, শুধু মাউন্টের পর রেন্ডার */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <BarChart3 size={20} />
-            Daily Tasks (Click on bars for details)
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <BarChart3 size={18} />
+            Daily Tasks
           </h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={dailyStats} onClick={handleBarClick}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="day" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" />
-                <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.5rem', color: '#fff' }} labelStyle={{ color: '#9CA3AF' }} />
-                <Legend />
-                <Bar dataKey="tasks" fill="#3B82F6" name="Total Tasks" cursor="pointer" />
-                <Bar dataKey="completed" fill="#10B981" name="Completed" cursor="pointer" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="h-60 sm:h-72">
+            {mounted && (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={dailyStats} onClick={handleBarClick}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="day" stroke="#9CA3AF" tick={{ fontSize: 12 }} />
+                  <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.5rem', color: '#fff', fontSize: '12px' }} />
+                  <Legend wrapperStyle={{ fontSize: '12px' }} />
+                  <Bar dataKey="tasks" fill="#3B82F6" name="Total" cursor="pointer" />
+                  <Bar dataKey="completed" fill="#10B981" name="Done" cursor="pointer" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <LineChartIcon size={20} />
-            Focus Time Trend
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <LineChartIcon size={18} />
+            Focus Time
           </h3>
-          <div className="h-72">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={dailyStats}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                <XAxis dataKey="day" stroke="#9CA3AF" />
-                <YAxis stroke="#9CA3AF" />
-                <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.5rem', color: '#fff' }} labelStyle={{ color: '#9CA3AF' }} />
-                <Area type="monotone" dataKey="focusTime" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.3} name="Focus Time (h)" />
-                <Area type="monotone" dataKey="estimatedTime" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.3} name="Estimated Time (h)" />
-              </AreaChart>
-            </ResponsiveContainer>
+          <div className="h-60 sm:h-72">
+            {mounted && (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={dailyStats}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="day" stroke="#9CA3AF" tick={{ fontSize: 12 }} />
+                  <YAxis stroke="#9CA3AF" tick={{ fontSize: 12 }} />
+                  <Tooltip contentStyle={{ backgroundColor: '#1F2937', border: 'none', borderRadius: '0.5rem', fontSize: '12px' }} />
+                  <Area type="monotone" dataKey="focusTime" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.3} name="Focus (h)" />
+                  <Area type="monotone" dataKey="estimatedTime" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.3} name="Estimated (h)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       </div>
 
-      {/* ডিস্ট্রিবিউশন ও ইনসাইট */}
+      {/* ডিস্ট্রিবিউশন ও ইনসাইট – মোবাইলে স্ট্যাক */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <PieChartIcon size={20} />
-            Time by Category (Click to see tasks)
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <PieChartIcon size={18} />
+            Time by Category
           </h3>
           {categoryData.length > 0 ? (
-            <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie 
-                    data={categoryData} 
-                    cx="50%" 
-                    cy="50%" 
-                    innerRadius={50} 
-                    outerRadius={80} 
-                    paddingAngle={2} 
-                    dataKey="value" 
-                    label={(entry) => `${entry.name} ${entry.value}h`}
-                    onClick={handlePieClick}
-                    cursor="pointer"
-                  >
-                    {categoryData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
-                  </Pie>
-                  <Tooltip formatter={(value) => `${value} hours`} />
-                </PieChart>
-              </ResponsiveContainer>
+            <div className="h-56 sm:h-64">
+              {mounted && (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                      data={categoryData} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius={40} 
+                      outerRadius={60} 
+                      paddingAngle={2} 
+                      dataKey="value" 
+                      label={(entry) => `${entry.name} ${entry.value}h`}
+                      onClick={handlePieClick}
+                      cursor="pointer"
+                      labelLine={{ stroke: '#9CA3AF', strokeWidth: 1 }}
+                    >
+                      {categoryData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
+                    </Pie>
+                    <Tooltip formatter={(value) => `${value} hours`} contentStyle={{ fontSize: '12px' }} />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
             </div>
           ) : (
-            <div className="h-64 flex items-center justify-center text-gray-500">No completed time blocks yet.</div>
+            <div className="h-56 flex items-center justify-center text-sm text-gray-500">No completed tasks yet.</div>
           )}
           <div className="flex flex-wrap gap-2 mt-4">
             {categoryData.slice(0, 5).map(cat => (
@@ -598,9 +588,9 @@ const WeeklyReview = () => {
           </div>
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Zap size={20} />
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <Zap size={18} />
             Priority Breakdown
           </h3>
           {priorityData.length > 0 ? (
@@ -608,29 +598,29 @@ const WeeklyReview = () => {
               {priorityData.map((p, idx) => (
                 <div key={idx} className="flex items-center gap-2">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: p.color }} />
-                  <span className="flex-1 text-sm font-medium text-gray-700 dark:text-gray-300">{p.name}</span>
-                  <span className="text-sm text-gray-600 dark:text-gray-400">{p.value} tasks</span>
+                  <span className="flex-1 text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">{p.name}</span>
+                  <span className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">{p.value}</span>
                   <span className="text-xs text-gray-500">{Math.round((p.value / weeklyStats.totalCompleted) * 100 || 0)}%</span>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="h-32 flex items-center justify-center text-gray-500">No completed tasks.</div>
+            <div className="h-32 flex items-center justify-center text-sm text-gray-500">No completed tasks.</div>
           )}
         </div>
 
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Brain size={20} />
+        <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <Brain size={18} />
             Insights
           </h3>
           <div className="space-y-4">
             {insights.nextTopic && (
               <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <div className="flex items-start gap-2">
-                  <BookOpen size={16} className="text-blue-600 mt-0.5" />
+                  <BookOpen size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Next to learn</p>
+                    <p className="text-xs font-medium text-blue-800 dark:text-blue-300">Next to learn</p>
                     <p className="text-sm text-gray-700 dark:text-gray-300">{insights.nextTopic.title}</p>
                     <p className="text-xs text-gray-500">{insights.nextTopic.section} • {insights.nextTopic.time}h</p>
                   </div>
@@ -640,11 +630,11 @@ const WeeklyReview = () => {
             {insights.reviewTopics.length > 0 && (
               <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
                 <div className="flex items-start gap-2">
-                  <AlertCircle size={16} className="text-amber-600 mt-0.5" />
+                  <AlertCircle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Review needed</p>
+                    <p className="text-xs font-medium text-amber-800 dark:text-amber-300">Review needed</p>
                     {insights.reviewTopics.map((topic, i) => (
-                      <p key={i} className="text-xs text-gray-700 dark:text-gray-300 mt-1">• {topic.title} ({topic.daysAgo} days ago)</p>
+                      <p key={i} className="text-xs text-gray-700 dark:text-gray-300 mt-1">• {topic.title} ({topic.daysAgo}d)</p>
                     ))}
                   </div>
                 </div>
@@ -653,10 +643,10 @@ const WeeklyReview = () => {
             {weeklyStats.streak > 0 && (
               <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                 <div className="flex items-start gap-2">
-                  <Award size={16} className="text-green-600 mt-0.5" />
+                  <Award size={16} className="text-green-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-medium text-green-800 dark:text-green-300">{weeklyStats.streak} day streak! 🔥</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{weeklyStats.streak >= 5 ? 'Amazing consistency!' : 'Keep the momentum!'}</p>
+                    <p className="text-xs font-medium text-green-800 dark:text-green-300">{weeklyStats.streak} day streak! 🔥</p>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">{weeklyStats.streak >= 5 ? 'Amazing!' : 'Keep going!'}</p>
                   </div>
                 </div>
               </div>
@@ -665,14 +655,14 @@ const WeeklyReview = () => {
         </div>
       </div>
 
-      {/* গোল ট্র্যাকার (এডিটেবল) */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-sm border border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-            <Target size={20} />
-            Weekly Goals (Click ✏️ to edit)
+      {/* গোল ট্র্যাকার – মোবাইলে ১ কলাম */}
+      <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-200 dark:border-gray-700">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+            <Target size={18} />
+            Weekly Goals
           </h3>
-          <span className="text-sm text-gray-500">Adjust targets to your preference</span>
+          <span className="text-xs text-gray-500">Click ✏️ to edit</span>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {goals.map(goal => {
@@ -680,8 +670,8 @@ const WeeklyReview = () => {
             const isEditing = editingGoalId === goal.id;
             return (
               <div key={goal.id} className="p-4 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium text-gray-900 dark:text-white">{goal.name}</span>
+                <div className="flex flex-wrap justify-between items-center gap-2 mb-2">
+                  <span className="font-medium text-sm sm:text-base text-gray-900 dark:text-white">{goal.name}</span>
                   <div className="flex items-center gap-2">
                     {isEditing ? (
                       <>
@@ -689,24 +679,24 @@ const WeeklyReview = () => {
                           type="number"
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value)}
-                          className="w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                          className="w-16 sm:w-20 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                           min="1"
                           step={goal.unit === '%' ? '1' : '0.5'}
                           autoFocus
                         />
-                        <button onClick={saveGoalEdit} className="text-green-600 hover:text-green-700">
+                        <button onClick={saveGoalEdit} className="text-green-600 hover:text-green-700 min-h-[44px] min-w-[44px]">
                           <Save size={16} />
                         </button>
-                        <button onClick={cancelGoalEdit} className="text-red-600 hover:text-red-700">
+                        <button onClick={cancelGoalEdit} className="text-red-600 hover:text-red-700 min-h-[44px] min-w-[44px]">
                           <X size={16} />
                         </button>
                       </>
                     ) : (
                       <>
-                        <span className={`text-sm font-bold ${progress >= 100 ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`}>
+                        <span className={`text-xs sm:text-sm font-bold ${progress >= 100 ? 'text-green-600' : 'text-gray-600 dark:text-gray-400'}`}>
                           {goal.current}/{goal.target} {goal.unit}
                         </span>
-                        <button onClick={() => startEditGoal(goal)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">
+                        <button onClick={() => startEditGoal(goal)} className="text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 min-h-[44px] min-w-[44px]">
                           <Edit2 size={14} />
                         </button>
                       </>
