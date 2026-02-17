@@ -46,6 +46,8 @@ const SettingsPanel = lazy(() => import('./components/SettingsPanel'));
 const LearningRoadmap = lazy(() => import('./components/LearningRoadmap'));
 const CommunicationRoadmap = lazy(() => import('./components/CommunicationRoadmap'));
 const Home = lazy(() => import('./components/Home'));
+// NEW: Import the WeeklyPractice component
+const WeeklyPractice = lazy(() => import('./components/WeeklyPractice'));
 
 // Loading fallback
 const PageLoader = () => (
@@ -439,7 +441,7 @@ function AppContent() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Tabs
+  // Tabs (NEW: added "practice" tab)
   const tabs = [
     { id: 'home', path: '/', label: appLanguage === 'bn' ? 'হোম' : 'Home', icon: <HomeIcon size={20} /> },
     { id: 'today', path: '/today', label: appLanguage === 'bn' ? 'আজ' : 'Today', icon: <ListTodo size={20} /> },
@@ -450,6 +452,8 @@ function AppContent() {
     { id: 'learning', path: '/learning', label: appLanguage === 'bn' ? 'লার্নিং' : 'Learning', icon: <Library size={20} /> },
     { id: 'communication', path: '/communication', label: appLanguage === 'bn' ? 'কমিউনিকেশন' : 'Comm', icon: <MessageSquare size={20} /> },
     { id: 'lifetimer', path: '/lifetimer', label: appLanguage === 'bn' ? 'লাইফ টাইমার' : 'Life Timer', icon: <Heart size={20} /> },
+    // NEW: Practice tab
+    { id: 'practice', path: '/practice', label: appLanguage === 'bn' ? 'অনুশীলন' : 'Practice', icon: <RotateCcw size={20} /> },
     { id: 'settings', path: '/settings', label: appLanguage === 'bn' ? 'সেটিংস' : 'Settings', icon: <SettingsIcon size={20} /> },
   ];
 
@@ -687,6 +691,8 @@ function AppContent() {
                 <Route path="/learning" element={<LearningRoadmap />} />
                 <Route path="/communication" element={<CommunicationRoadmap />} />
                 <Route path="/lifetimer" element={<LifeTimer birthDate={birthDate} />} />
+                {/* NEW: Practice route */}
+                <Route path="/practice" element={<WeeklyPractice language={appLanguage} />} />
                 <Route
                   path="/settings"
                   element={
