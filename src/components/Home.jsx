@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   Calendar, ListTodo, Clock, BookOpen, Library, MessageSquare,
@@ -6,9 +6,117 @@ import {
   ChevronRight, Zap, BarChart, Users, AlertCircle, CalendarClock,
   Flame, Star, Eye, Sun, Moon, Share2, Download, Settings,
 } from "lucide-react";
+import { toast } from 'react-hot-toast';
 
 const STORAGE_KEY = 'advancedTimeBlocks';
 const USER_NAME_KEY = 'userName';
+const STORAGE_CHANGE_EVENT = 'timeBlocksStorageChanged';
+
+// ---------- Translations ----------
+const translations = {
+  bn: {
+    welcomeMessage: "আপনার দিন পরিকল্পনা করুন, দক্ষতা অর্জন করুন এবং লক্ষ্যে পৌঁছান।",
+    totalTasks: "মোট টাস্ক",
+    completedTasks: "সম্পন্ন",
+    productivity: "উৎপাদনশীলতা",
+    focusTime: "ফোকাস সময়",
+    quickAccess: "দ্রুত প্রবেশ",
+    clickToNavigate: "ক্লিক করলে যাবে",
+    todayDesc: "আজকের কাজ ও অগ্রগতি",
+    blocksDesc: "সময় ব্যবস্থাপনা ও রুটিন",
+    learningDesc: "কোর্স ও দক্ষতা উন্নয়ন",
+    communicationDesc: "যোগাযোগ দক্ষতা রোডম্যাপ",
+    lifeTimerDesc: "জীবনের সময় গণনা",
+    roadmapDesc: "ক্যারিয়ার পথ পরিকল্পনা",
+    whyChoose: "কেন ডে মেট প্রো?",
+    feature1Title: "স্মার্ট প্ল্যানিং",
+    feature1Desc: "বুদ্ধিমানের সাথে দিন সাজান, সময় অপচয় রোধ করুন।",
+    feature2Title: "অগ্রগতি ট্র্যাকিং",
+    feature2Desc: "আপনার অগ্রগতি দেখুন, লক্ষ্যে পৌঁছান।",
+    feature3Title: "দ্বিভাষিক সাপোর্ট",
+    feature3Desc: "ইংরেজি ও বাংলায় পুরো অভিজ্ঞতা।",
+    dailyMotivation: "দৈনিক অনুপ্রেরণা",
+    quote: "একটি সফল ক্যারিয়ার গড়তে প্রতিদিন ১% উন্নতিই যথেষ্ট।",
+    quoteAuthor: "ডে মেট প্রো",
+    today: "আজ",
+    timeBlocks: "টাইম ব্লক",
+    learningHub: "লার্নিং হাব",
+    communication: "কমিউনিকেশন",
+    lifeTimer: "লাইফ টাইমার",
+    roadmap: "রোডম্যাপ",
+  },
+  en: {
+    welcomeMessage: "Plan your day, master skills, and achieve your goals.",
+    totalTasks: "Total Tasks",
+    completedTasks: "Completed",
+    productivity: "Productivity",
+    focusTime: "Focus Time",
+    quickAccess: "Quick Access",
+    clickToNavigate: "Click to navigate",
+    todayDesc: "Today's tasks and progress",
+    blocksDesc: "Time management & routine",
+    learningDesc: "Courses & skill development",
+    communicationDesc: "Communication skills roadmap",
+    lifeTimerDesc: "Life time calculation",
+    roadmapDesc: "Career path planning",
+    whyChoose: "Why DayMate Pro?",
+    feature1Title: "Smart Planning",
+    feature1Desc: "Organize your day intelligently, reduce time waste.",
+    feature2Title: "Progress Tracking",
+    feature2Desc: "Monitor your progress, reach your goals.",
+    feature3Title: "Bilingual Support",
+    feature3Desc: "Full experience in English and Bengali.",
+    dailyMotivation: "Daily Motivation",
+    quote: "Building a successful career requires just 1% improvement every day.",
+    quoteAuthor: "DayMate Pro",
+    today: "Today",
+    timeBlocks: "Time Blocks",
+    learningHub: "Learning Hub",
+    communication: "Communication",
+    lifeTimer: "Life Timer",
+    roadmap: "Roadmap",
+  },
+};
+
+// ---------- Helper: calculate if a block occurs on a specific date ----------
+// Also respects a `startDate` field – the block is only considered if the date
+// is on or after its start date. If no startDate is present, it's assumed valid.
+const doesBlockOccurOnDate = (block, dateStr) => {
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return false;
+
+  // If the block has a start date and the target date is before it, it cannot occur.
+  if (block.startDate && dateStr < block.startDate) return false;
+
+  const dayAbbr = date.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
+
+  // Exact date match (for non‑repeating or one‑off tasks)
+  if (block.date === dateStr) return true;
+
+  // Repeat logic
+  if (block.repeatType === 'daily') return true;
+  if (block.repeatType === 'weekly' && block.repeats?.includes(dayAbbr)) return true;
+  if (block.repeatType === 'custom' && block.repeats?.includes(dayAbbr)) return true;
+  if (block.repeatType === 'monthly' && block.date) {
+    const blockDay = new Date(block.date).getDate();
+    const lastDayOfMonth = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+    const targetDay = Math.min(blockDay, lastDayOfMonth);
+    return date.getDate() === targetDay;
+  }
+  if (block.scheduledDay?.toLowerCase() === dayAbbr) return true;
+  return false;
+};
+
+const isTaskCompletedOnDate = (task, date) => {
+  return task.completedDates?.[date] || false;
+};
+
+const formatDateMonthDay = (dateStr, locale = 'en') => {
+  if (!dateStr || !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr || '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return date.toLocaleDateString(locale === 'bn' ? 'bn-BD' : 'en-US', { month: 'short', day: 'numeric' });
+};
 
 const Home = ({
   language = 'en',
@@ -23,106 +131,138 @@ const Home = ({
   const t = translations[language] || translations.en;
   const getTodayDate = () => new Date().toISOString().split('T')[0];
 
-  // ---------- user name from localStorage ----------
+  // User name from localStorage, synced with prop
   const [userName, setUserName] = useState(() => {
     const saved = localStorage.getItem(USER_NAME_KEY);
     return saved || propUserName || "User";
   });
 
-  // ---------- local tasks ----------
+  // Sync with propUserName if it changes
+  useEffect(() => {
+    if (propUserName && propUserName !== userName) {
+      setUserName(propUserName);
+    }
+  }, [propUserName, userName]);
+
+  // local tasks state
   const [localTasks, setLocalTasks] = useState([]);
 
-  // ---------- load from storage ----------
-  useEffect(() => {
-    const load = () => {
-      try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          // migrate old data
-          const migrated = parsed.map(block => {
-            if (block.completed && block.completedDate && !block.completedDates) {
-              return { ...block, completedDates: { [block.completedDate]: true } };
+  // Load tasks from localStorage and migrate them
+  const loadTasks = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        let parsed = JSON.parse(saved);
+
+        // Migrate each block:
+        // 1. Convert old `completed` + `completedDate` to `completedDates` object.
+        // 2. Ensure every task has a `startDate` (used to filter repeats).
+        const migrated = parsed.map(block => {
+          // Step 1: completedDates migration
+          if (block.completed && block.completedDate && !block.completedDates) {
+            block.completedDates = { [block.completedDate]: true };
+          }
+          if (!block.completedDates) block.completedDates = {};
+
+          // Step 2: startDate migration
+          if (!block.startDate) {
+            if (block.date) {
+              block.startDate = block.date;
+            } else if (block.repeatType && block.repeatType !== 'none') {
+              // For repeating tasks without a base date, infer from completedDates
+              const dates = Object.keys(block.completedDates).filter(d => block.completedDates[d]);
+              if (dates.length > 0) {
+                dates.sort(); // oldest first
+                block.startDate = dates[0];
+              } else {
+                // No history, assume it starts today
+                block.startDate = getTodayDate();
+              }
+            } else {
+              // Non‑repeating task without a date? fallback to today.
+              block.startDate = getTodayDate();
             }
-            if (!block.completedDates) block.completedDates = {};
-            return block;
-          });
-          setLocalTasks(migrated);
-        } else {
-          setLocalTasks([]);
-        }
-      } catch (error) {
-        console.error('Error loading tasks:', error);
+          }
+          return block;
+        });
+        setLocalTasks(migrated);
+      } else {
+        setLocalTasks([]);
       }
-    };
-    load();
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    }
+  }, []);
+
+  // initial load
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+  // listen to storage events (other tabs)
+  useEffect(() => {
     const handleStorage = (e) => {
-      if (e.key === STORAGE_KEY) load();
+      if (e.key === STORAGE_KEY) loadTasks();
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
-  }, []);
+  }, [loadTasks]);
 
-  // Save userName when it changes
+  // listen to custom event (same tab)
   useEffect(() => {
-    if (userName !== "User") {
+    const handleCustom = () => loadTasks();
+    window.addEventListener(STORAGE_CHANGE_EVENT, handleCustom);
+    return () => window.removeEventListener(STORAGE_CHANGE_EVENT, handleCustom);
+  }, [loadTasks]);
+
+  // save userName when it changes
+  useEffect(() => {
+    if (userName && userName !== "User") {
       localStorage.setItem(USER_NAME_KEY, userName);
     }
   }, [userName]);
 
+  // theme effect
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
   const tasks = propTasks || localTasks;
 
-  // ---------- Helper: repeats to array ----------
-  const getRepeatsArray = (repeats) => {
-    if (!repeats) return [];
-    if (Array.isArray(repeats)) return repeats;
-    if (typeof repeats === 'string') return repeats.split(',').map(s => s.trim().toLowerCase());
-    return [];
-  };
+  // ---------- FIX: Count only tasks that have a date (non‑master) for total tasks ----------
+  const dailyTasks = useMemo(() => tasks.filter(t => t.date), [tasks]);
 
-  // ---------- Helper: format date to Month Day ----------
-  const formatDateMonthDay = (dateStr, locale = 'en') => {
-    if (!dateStr || !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) return dateStr || '';
-    const [year, month, day] = dateStr.split('-').map(Number);
-    const date = new Date(year, month - 1, day);
-    return date.toLocaleDateString(locale === 'bn' ? 'bn-BD' : 'en-US', { month: 'short', day: 'numeric' });
-  };
+  const totalTasks = dailyTasks.length;
 
-  // ---------- Helper: is task completed on a specific date ----------
-  const isTaskCompletedOnDate = (task, date) => {
-    return task.completedDates?.[date] || false;
-  };
+  // yesterday's date string
+  const yesterdayStr = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return d.toISOString().split('T')[0];
+  }, []);
 
-  // ---------- yesterday's incomplete tasks ----------
+  // yesterday incomplete tasks (respects startDate via doesBlockOccurOnDate)
   const yesterdayIncomplete = useMemo(() => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
-    const dayOfWeek = yesterday.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
-
     return tasks.filter(task => {
-      if (task.date === yesterdayStr) {
-        return !isTaskCompletedOnDate(task, yesterdayStr);
-      }
-      const repeats = getRepeatsArray(task.repeats);
-      const isScheduledYesterday = 
-        repeats.includes(dayOfWeek) || 
-        (task.scheduledDay && task.scheduledDay.toLowerCase() === dayOfWeek);
-      if (!isScheduledYesterday) return false;
+      if (!doesBlockOccurOnDate(task, yesterdayStr)) return false;
       return !isTaskCompletedOnDate(task, yesterdayStr);
     });
-  }, [tasks]);
+  }, [tasks, yesterdayStr]);
 
-  // ---------- weekly incomplete tasks ----------
+  // weekly incomplete (last 7 days)
   const weeklyIncomplete = useMemo(() => {
     const today = new Date();
     const last7Days = [];
     for (let i = 1; i <= 7; i++) {
-      const d = new Date();
+      const d = new Date(today);
       d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
       last7Days.push({
-        dateStr: d.toISOString().split('T')[0],
-        dayOfWeek: d.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase(),
+        dateStr,
         display: d.toLocaleDateString(language === 'bn' ? 'bn-BD' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric' }),
       });
     }
@@ -130,13 +270,7 @@ const Home = ({
     const result = [];
     tasks.forEach(task => {
       last7Days.forEach(day => {
-        const isDateMatch = task.date === day.dateStr;
-        const repeats = getRepeatsArray(task.repeats);
-        const isRecurringMatch = 
-          repeats.includes(day.dayOfWeek) || 
-          (task.scheduledDay && task.scheduledDay.toLowerCase() === day.dayOfWeek);
-        const isScheduled = isDateMatch || isRecurringMatch;
-        if (isScheduled && !isTaskCompletedOnDate(task, day.dateStr)) {
+        if (doesBlockOccurOnDate(task, day.dateStr) && !isTaskCompletedOnDate(task, day.dateStr)) {
           result.push({
             ...task,
             scheduledDate: day.dateStr,
@@ -146,13 +280,14 @@ const Home = ({
       });
     });
 
-    const unique = result.filter((item, index, self) => 
+    // Remove duplicates (same task on same day)
+    const unique = result.filter((item, index, self) =>
       index === self.findIndex(t => t.id === item.id && t.scheduledDate === item.scheduledDate)
     );
     return unique.sort((a, b) => b.scheduledDate.localeCompare(a.scheduledDate)).slice(0, 5);
   }, [tasks, language]);
 
-  // ---------- trend: last 7 days completed tasks ----------
+  // trend: last 7 days completed tasks
   const last7DaysCompleted = useMemo(() => {
     const days = [];
     for (let i = 6; i >= 0; i--) {
@@ -160,16 +295,16 @@ const Home = ({
       d.setDate(d.getDate() - i);
       const dateStr = d.toISOString().split('T')[0];
       const count = tasks.filter(t => isTaskCompletedOnDate(t, dateStr)).length;
-      days.push({ 
-        date: dateStr, 
-        count, 
-        label: d.toLocaleDateString('en-US', { weekday: 'short' }) 
+      days.push({
+        date: dateStr,
+        count,
+        label: d.toLocaleDateString('en-US', { weekday: 'short' })
       });
     }
     return days;
   }, [tasks]);
 
-  // ---------- streak ----------
+  // streak
   const streak = useMemo(() => {
     let currentStreak = 0;
     for (let i = 0; i < 30; i++) {
@@ -183,7 +318,7 @@ const Home = ({
     return currentStreak;
   }, [tasks]);
 
-  // ---------- best day ----------
+  // best day
   const bestDay = useMemo(() => {
     const counts = {};
     tasks.forEach(task => {
@@ -205,15 +340,12 @@ const Home = ({
     return maxDate ? { date: maxDate, count: maxCount } : null;
   }, [tasks]);
 
-  // ---------- yesterday completed ----------
+  // yesterday completed
   const yesterdayCompleted = useMemo(() => {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
     return tasks.filter(t => isTaskCompletedOnDate(t, yesterdayStr)).length;
-  }, [tasks]);
+  }, [tasks, yesterdayStr]);
 
-  // ---------- yesterday performance message ----------
+  // yesterday performance message
   const yesterdayPerformanceMessage = useMemo(() => {
     const count = yesterdayCompleted;
     if (count === 0) return language === 'bn' ? 'আপনি গতকাল কোনো টাস্ক সম্পন্ন করেননি' : 'You completed no tasks yesterday';
@@ -222,7 +354,7 @@ const Home = ({
     return language === 'bn' ? `আপনি গতকাল ${count}টি টাস্ক সম্পন্ন করেছেন। আরও মনোযোগ দিন!` : `You completed ${count} tasks yesterday. Keep improving!`;
   }, [yesterdayCompleted, language]);
 
-  // ---------- upcoming goal ----------
+  // upcoming goal
   const upcomingGoal = useMemo(() => {
     if (!goals.length) return null;
     const now = new Date();
@@ -238,7 +370,7 @@ const Home = ({
       .sort((a, b) => a.diff - b.diff)[0] || null;
   }, [goals]);
 
-  // ---------- quick links ----------
+  // quick links
   const quickLinks = [
     { id: "today", label: t.today, icon: <ListTodo size={20} />, desc: t.todayDesc, color: "from-blue-500 to-blue-600", bg: "bg-blue-50 dark:bg-blue-900/20", iconBg: "bg-blue-100 dark:bg-blue-900/30", iconColor: "text-blue-600 dark:text-blue-400" },
     { id: "blocks", label: t.timeBlocks, icon: <Clock size={20} />, desc: t.blocksDesc, color: "from-purple-500 to-purple-600", bg: "bg-purple-50 dark:bg-purple-900/20", iconBg: "bg-purple-100 dark:bg-purple-900/30", iconColor: "text-purple-600 dark:text-purple-400" },
@@ -248,14 +380,14 @@ const Home = ({
     { id: "roadmap", label: t.roadmap, icon: <BookOpen size={20} />, desc: t.roadmapDesc, color: "from-amber-500 to-amber-600", bg: "bg-amber-50 dark:bg-amber-900/20", iconBg: "bg-amber-100 dark:bg-amber-900/30", iconColor: "text-amber-600 dark:text-amber-400" },
   ];
 
-  // ---------- features ----------
+  // features
   const features = [
     { icon: <Zap size={24} />, title: t.feature1Title, desc: t.feature1Desc, color: "from-blue-500 to-cyan-500" },
     { icon: <BarChart size={24} />, title: t.feature2Title, desc: t.feature2Desc, color: "from-green-500 to-emerald-500" },
     { icon: <Users size={24} />, title: t.feature3Title, desc: t.feature3Desc, color: "from-purple-500 to-pink-500" },
   ];
 
-  // ---------- greeting ----------
+  // greeting
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (language === "bn") {
@@ -277,23 +409,23 @@ const Home = ({
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
 
-  // ---------- share stats (simulated) ----------
+  // share stats (simulated)
   const handleShareStats = () => {
     const text = `My DayMate Pro Stats:\nStreak: ${streak} days\nBest Day: ${bestDay ? formatDateMonthDay(bestDay.date, language) + ' (' + bestDay.count + ' tasks)' : 'N/A'}\nYesterday: ${yesterdayCompleted} tasks\nProductivity: ${stats?.productivity || 0}%`;
     if (navigator.share) {
       navigator.share({ title: 'My DayMate Pro Stats', text });
     } else {
       navigator.clipboard.writeText(text);
-      alert('Stats copied to clipboard!');
+      toast.success('Stats copied to clipboard!');
     }
   };
 
-  // ---------- export as image (simulated) ----------
+  // export as image (simulated)
   const handleExportImage = () => {
-    alert('Export as image feature coming soon! (simulated)');
+    toast('Export as image feature coming soon! (simulated)', { icon: '📸' });
   };
 
-  // ---------- toggle theme ----------
+  // toggle theme
   const toggleTheme = () => {
     if (setTheme) {
       setTheme(theme === 'light' ? 'dark' : 'light');
@@ -338,7 +470,7 @@ const Home = ({
         <div className="space-y-3 sm:space-y-4">
           <StatCard
             title={t.totalTasks}
-            value={stats?.totalTasks || tasks.length}
+            value={totalTasks}
             icon={<ListTodo size={18} />}
             gradient="from-blue-500 to-blue-600"
             lightBg="bg-blue-50 dark:bg-blue-900/20"
@@ -348,7 +480,7 @@ const Home = ({
           />
           <StatCard
             title={t.completedTasks}
-            value={stats?.completedTasks || tasks.filter(t => isTaskCompletedOnDate(t, getTodayDate())).length}
+            value={tasks.filter(t => isTaskCompletedOnDate(t, getTodayDate())).length}
             icon={<CheckCircle size={18} />}
             gradient="from-green-500 to-green-600"
             lightBg="bg-green-50 dark:bg-green-900/20"
@@ -389,9 +521,9 @@ const Home = ({
               return (
                 <div key={idx} className="flex flex-col items-center flex-1">
                   <div className="w-full bg-indigo-100 dark:bg-indigo-900/30 rounded-t-lg relative" style={{ height: `${height}px` }}>
-                    <div 
-                      className="absolute bottom-0 w-full bg-indigo-500 dark:bg-indigo-600 rounded-t-lg transition-all" 
-                      style={{ height: `${height}px` }} 
+                    <div
+                      className="absolute bottom-0 w-full bg-indigo-500 dark:bg-indigo-600 rounded-t-lg transition-all"
+                      style={{ height: `${height}px` }}
                     />
                   </div>
                   <span className="text-[0.6rem] sm:text-xs mt-1 sm:mt-2 text-gray-600 dark:text-gray-400">{day.label}</span>
@@ -714,72 +846,5 @@ const StatCard = ({ title, value, icon, gradient, lightBg, iconBg, iconColor, de
     </div>
   </motion.div>
 );
-
-const translations = {
-  bn: {
-    welcomeMessage: "আপনার দিন পরিকল্পনা করুন, দক্ষতা অর্জন করুন এবং লক্ষ্যে পৌঁছান।",
-    statsOverview: "সংক্ষিপ্ত পরিসংখ্যান",
-    totalTasks: "মোট টাস্ক",
-    completedTasks: "সম্পন্ন",
-    productivity: "উৎপাদনশীলতা",
-    focusTime: "ফোকাস সময়",
-    quickAccess: "দ্রুত প্রবেশ",
-    clickToNavigate: "ক্লিক করলে যাবে",
-    todayDesc: "আজকের কাজ ও অগ্রগতি",
-    blocksDesc: "সময় ব্যবস্থাপনা ও রুটিন",
-    learningDesc: "কোর্স ও দক্ষতা উন্নয়ন",
-    communicationDesc: "যোগাযোগ দক্ষতা রোডম্যাপ",
-    lifeTimerDesc: "জীবনের সময় গণনা",
-    roadmapDesc: "ক্যারিয়ার পথ পরিকল্পনা",
-    whyChoose: "কেন ডে মেট প্রো?",
-    feature1Title: "স্মার্ট প্ল্যানিং",
-    feature1Desc: "বুদ্ধিমানের সাথে দিন সাজান, সময় অপচয় রোধ করুন।",
-    feature2Title: "অগ্রগতি ট্র্যাকিং",
-    feature2Desc: "আপনার অগ্রগতি দেখুন, লক্ষ্যে পৌঁছান।",
-    feature3Title: "দ্বিভাষিক সাপোর্ট",
-    feature3Desc: "ইংরেজি ও বাংলায় পুরো অভিজ্ঞতা।",
-    dailyMotivation: "দৈনিক অনুপ্রেরণা",
-    quote: "একটি সফল ক্যারিয়ার গড়তে প্রতিদিন ১% উন্নতিই যথেষ্ট।",
-    quoteAuthor: "ডে মেট প্রো",
-    today: "আজ",
-    timeBlocks: "টাইম ব্লক",
-    learningHub: "লার্নিং হাব",
-    communication: "কমিউনিকেশন",
-    lifeTimer: "লাইফ টাইমার",
-    roadmap: "রোডম্যাপ",
-  },
-  en: {
-    welcomeMessage: "Plan your day, master skills, and achieve your goals.",
-    statsOverview: "Stats Overview",
-    totalTasks: "Total Tasks",
-    completedTasks: "Completed",
-    productivity: "Productivity",
-    focusTime: "Focus Time",
-    quickAccess: "Quick Access",
-    clickToNavigate: "Click to navigate",
-    todayDesc: "Today's tasks and progress",
-    blocksDesc: "Time management & routine",
-    learningDesc: "Courses & skill development",
-    communicationDesc: "Communication skills roadmap",
-    lifeTimerDesc: "Life time calculation",
-    roadmapDesc: "Career path planning",
-    whyChoose: "Why DayMate Pro?",
-    feature1Title: "Smart Planning",
-    feature1Desc: "Organize your day intelligently, reduce time waste.",
-    feature2Title: "Progress Tracking",
-    feature2Desc: "Monitor your progress, reach your goals.",
-    feature3Title: "Bilingual Support",
-    feature3Desc: "Full experience in English and Bengali.",
-    dailyMotivation: "Daily Motivation",
-    quote: "Building a successful career requires just 1% improvement every day.",
-    quoteAuthor: "DayMate Pro",
-    today: "Today",
-    timeBlocks: "Time Blocks",
-    learningHub: "Learning Hub",
-    communication: "Communication",
-    lifeTimer: "Life Timer",
-    roadmap: "Roadmap",
-  },
-};
 
 export default Home;

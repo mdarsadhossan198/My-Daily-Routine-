@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   Clock, Plus, Trash2, Edit2, Calendar, CheckCircle, XCircle,
@@ -6,7 +6,7 @@ import {
   Download, Upload, Play, StopCircle, Timer,
   BookOpen, Briefcase, Heart, Dumbbell, Users, Home,
   Palette, Grid, List, Calendar as CalendarIcon, AlertCircle,
-  Zap, DollarSign, Repeat, Save, Search, ArrowUpDown
+  Zap, DollarSign, Repeat, Save, Search, ArrowUpDown, Sun
 } from 'lucide-react';
 
 const STORAGE_KEY = 'advancedTimeBlocks';
@@ -21,10 +21,13 @@ const migrateBlock = (block) => {
   if (!newBlock.completedDates) newBlock.completedDates = {};
   delete newBlock.completed;
   delete newBlock.completedDate;
+  if (!newBlock.repeatDayOfMonth && newBlock.repeatType === 'monthly') {
+    newBlock.repeatDayOfMonth = 1;
+  }
   return newBlock;
 };
 
-// ==================== STATIC CONSTANTS (outside component) ====================
+// ==================== STATIC CONSTANTS ====================
 const COLORS = [
   { value: 'bg-blue-500', label: 'Blue' },
   { value: 'bg-green-500', label: 'Green' },
@@ -86,11 +89,24 @@ const REPEAT_TYPES = [
 // ==================== COMPONENT ====================
 const TimeBlockManager = () => {
   // ---------- Get current day ----------
-  const getCurrentDayAbbr = () => {
+  const getCurrentDayAbbr = useCallback(() => {
     const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     return days[new Date().getDay()];
-  };
-  const getTodayDate = () => new Date().toISOString().split('T')[0];
+  }, []);
+
+  const getTodayDate = useCallback(() => new Date().toISOString().split('T')[0], []);
+
+  // ---------- Helper: get actual date for a day abbreviation (current week) ----------
+  const getDateForDayAbbr = useCallback((dayAbbr) => {
+    const dayMap = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+    const targetWeekday = dayMap[dayAbbr];
+    const today = new Date();
+    const currentWeekday = today.getDay();
+    const diff = targetWeekday - currentWeekday; // can be negative (past days)
+    const targetDate = new Date(today);
+    targetDate.setDate(today.getDate() + diff);
+    return targetDate.toISOString().split('T')[0];
+  }, []);
 
   // ==================== STATE ====================
   const [timeBlocks, setTimeBlocks] = useState(() => {
@@ -109,8 +125,10 @@ const TimeBlockManager = () => {
           date: block.date || null,
           repeatType: block.repeatType || 'none',
           repeatEndDate: block.repeatEndDate || null,
+          repeatDayOfMonth: block.repeatDayOfMonth || 1,
           isTemplate: block.isTemplate || false,
-          templateId: block.templateId || null
+          templateId: block.templateId || null,
+          masterId: block.masterId || null
         }));
       }
     } catch (error) {
@@ -148,6 +166,7 @@ const TimeBlockManager = () => {
     date: getTodayDate(),
     repeatType: 'none',
     repeatEndDate: '',
+    repeatDayOfMonth: 1,
     isTemplate: false
   });
   const [tagInput, setTagInput] = useState('');
@@ -157,9 +176,10 @@ const TimeBlockManager = () => {
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
   const [activeDay, setActiveDay] = useState(getCurrentDayAbbr());
-  const [timer, setTimer] = useState(null);
-  const [activeTimer, setActiveTimer] = useState(null);
+  const [timerActive, setTimerActive] = useState(false);
+  const [activeTimerId, setActiveTimerId] = useState(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [showTemplates, setShowTemplates] = useState(false);
   const [stats, setStats] = useState({
@@ -173,11 +193,11 @@ const TimeBlockManager = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('time');
   const [sortOrder, setSortOrder] = useState('asc');
-
   const [storageSize, setStorageSize] = useState(0);
   const [lastGenerationDate, setLastGenerationDate] = useState('');
+  const [timeRemaining, setTimeRemaining] = useState({ hours: 0, minutes: 0, seconds: 0 });
 
-  // ==================== HELPER FUNCTIONS (memoized) ====================
+  // ==================== HELPER FUNCTIONS ====================
   const calculateDuration = useCallback((start, end) => {
     const [startHour, startMin] = start.split(':').map(Number);
     const [endHour, endMin] = end.split(':').map(Number);
@@ -197,16 +217,34 @@ const TimeBlockManager = () => {
   }, []);
 
   const isUpcoming = useCallback((block) => {
+    if (block.repeatType !== 'none' && !block.date) return false;
     const today = getTodayDate();
-    if (block.date !== today) return false;
+    let occursToday = false;
+    if (block.date === today) {
+      occursToday = true;
+    } else if (block.repeatType !== 'none') {
+      const dayAbbr = getCurrentDayAbbr();
+      if (block.repeatType === 'daily') {
+        occursToday = true;
+      } else if (block.repeatType === 'weekly' && block.repeats?.includes(dayAbbr)) {
+        occursToday = true;
+      } else if (block.repeatType === 'monthly' && block.repeatDayOfMonth) {
+        const todayDate = new Date(today);
+        occursToday = todayDate.getDate() === block.repeatDayOfMonth;
+      } else if (block.repeatType === 'custom' && block.repeats?.includes(dayAbbr)) {
+        occursToday = true;
+      }
+    }
+    if (!occursToday) return false;
+
     const now = new Date();
     const [blockHour, blockMin] = block.start.split(':').map(Number);
     const blockTime = new Date();
     blockTime.setHours(blockHour, blockMin, 0, 0);
     return blockTime > now;
-  }, []);
+  }, [getTodayDate, getCurrentDayAbbr]);
 
-  // হিস্ট্রি সীমা সহ সংরক্ষণ
+  // ==================== HISTORY ====================
   const saveToHistory = useCallback((action, prevBlocks, newBlocks) => {
     const historyEntry = {
       id: Date.now(),
@@ -243,6 +281,7 @@ const TimeBlockManager = () => {
     }
   }, [history, historyIndex]);
 
+  // ==================== STORAGE UTILS ====================
   const getLocalStorageSize = useCallback(() => {
     let total = 0;
     for (let key in localStorage) {
@@ -261,7 +300,7 @@ const TimeBlockManager = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }, []);
 
-  // উন্নত রিকারিং ব্লক জেনারেটর
+  // ==================== RECURRING BLOCK GENERATOR ====================
   const generateRecurringBlocks = useCallback(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -270,8 +309,14 @@ const TimeBlockManager = () => {
     const todayDayAbbr = dayIndexToId[today.getDay()];
 
     setTimeBlocks(prev => {
-      const masterBlocks = prev.filter(block => 
-        block.repeatType !== 'none' && !block.templateId && !block.isTemplate
+      const afterCleanup = prev.filter(block => {
+        if (block.repeatType !== 'none' && !block.date) return true;
+        if (block.date && block.date < todayStr) return false;
+        return true;
+      });
+
+      const masterBlocks = afterCleanup.filter(block =>
+        block.repeatType !== 'none' && !block.templateId && !block.isTemplate && !block.date
       );
 
       let newBlocks = [];
@@ -284,7 +329,9 @@ const TimeBlockManager = () => {
           if (endDate < today) return;
         }
 
-        const alreadyExists = prev.some(block => block.templateId === master.id && block.date === todayStr);
+        const alreadyExists = afterCleanup.some(block =>
+          block.masterId === master.id && block.date === todayStr
+        );
         if (alreadyExists) return;
 
         let shouldGenerate = false;
@@ -294,11 +341,11 @@ const TimeBlockManager = () => {
         } else if (master.repeatType === 'weekly') {
           shouldGenerate = master.repeats && master.repeats.includes(todayDayAbbr);
         } else if (master.repeatType === 'monthly') {
-          if (master.date) {
-            const masterDate = new Date(master.date);
+          if (master.repeatDayOfMonth) {
+            const todayDateNum = today.getDate();
             const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-            const targetDay = Math.min(masterDate.getDate(), lastDayOfMonth);
-            shouldGenerate = today.getDate() === targetDay;
+            const targetDay = Math.min(master.repeatDayOfMonth, lastDayOfMonth);
+            shouldGenerate = todayDateNum === targetDay;
           }
         } else if (master.repeatType === 'custom') {
           shouldGenerate = master.repeats && master.repeats.includes(todayDayAbbr);
@@ -316,6 +363,7 @@ const TimeBlockManager = () => {
             createdAt: new Date(),
             lastModified: new Date(),
             templateId: master.id,
+            masterId: master.id,
             scheduledDay: null
           };
           newBlocks.push(newBlock);
@@ -326,12 +374,16 @@ const TimeBlockManager = () => {
       if (generatedCount > 0) {
         toast.success(`${generatedCount} today's recurring block(s) generated`);
       }
+      if (afterCleanup.length < prev.length) {
+        toast(`Cleaned up old blocks (${prev.length - afterCleanup.length} removed)`);
+      }
+
       setLastGenerationDate(todayStr);
-      return [...prev, ...newBlocks];
+      return [...afterCleanup, ...newBlocks];
     });
   }, []);
 
-  // ক্লিনআপ (৯০ দিনের পুরোনো ব্লক মুছে ফেলা)
+  // ==================== CLEANUP OLD BLOCKS ====================
   const cleanupOldBlocks = useCallback(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -346,37 +398,39 @@ const TimeBlockManager = () => {
         return blockDate >= cutoffDate;
       });
       if (filtered.length !== prev.length) {
-        toast.info(`Cleaned up old blocks (${prev.length - filtered.length} removed)`);
+        toast(`Cleaned up old blocks (${prev.length - filtered.length} removed)`);
         return filtered;
       }
       return prev;
     });
   }, []);
 
-  // পরিসংখ্যান গণনা
+  // ==================== STATISTICS ====================
   const computeStats = useCallback(() => {
     const today = getTodayDate();
+    const displayBlocks = timeBlocks.filter(block => block.date !== null);
+
     const newStats = {
-      total: timeBlocks.length,
-      completed: timeBlocks.filter(b => b.completedDates?.[today]).length,
-      upcoming: timeBlocks.filter(b => !b.completedDates?.[today] && isUpcoming(b)).length,
-      totalHours: timeBlocks.reduce((total, block) => total + calculateDuration(block.start, block.end).hours, 0),
+      total: displayBlocks.length,
+      completed: displayBlocks.filter(b => b.completedDates?.[today]).length,
+      upcoming: displayBlocks.filter(b => !b.completedDates?.[today] && isUpcoming(b)).length,
+      totalHours: displayBlocks.reduce((total, block) => total + calculateDuration(block.start, block.end).hours, 0),
       byCategory: {},
       byPriority: {}
     };
 
     CATEGORIES.forEach(cat => {
-      newStats.byCategory[cat.id] = timeBlocks.filter(b => b.category === cat.id).length;
+      newStats.byCategory[cat.id] = displayBlocks.filter(b => b.category === cat.id).length;
     });
 
     PRIORITIES.forEach(pri => {
-      newStats.byPriority[pri.id] = timeBlocks.filter(b => b.priority === pri.id).length;
+      newStats.byPriority[pri.id] = displayBlocks.filter(b => b.priority === pri.id).length;
     });
 
     setStats(newStats);
-  }, [timeBlocks, isUpcoming, calculateDuration]); // CATEGORIES and PRIORITIES are now stable outside
+  }, [timeBlocks, isUpcoming, calculateDuration, getTodayDate]);
 
-  // ---------- ইফেক্ট ----------
+  // ==================== EFFECTS ====================
   useEffect(() => {
     cleanupOldBlocks();
   }, [cleanupOldBlocks]);
@@ -384,23 +438,20 @@ const TimeBlockManager = () => {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(timeBlocks));
     computeStats();
-    window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY, newValue: JSON.stringify(timeBlocks) }));
   }, [timeBlocks, computeStats]);
 
   useEffect(() => {
     localStorage.setItem('timeBlockTemplates', JSON.stringify(templates));
   }, [templates]);
 
+  // Timer effect - FIXED: no state updates inside setInterval callback that cause render-phase updates
   useEffect(() => {
     let interval;
-    if (timer && activeTimer) {
+    if (timerActive && activeTimerId) {
       interval = setInterval(() => {
         setTimerSeconds(prev => {
-          if (prev <= 0) {
+          if (prev <= 1) {
             clearInterval(interval);
-            toast.success('Time block completed! 🎉');
-            setTimer(null);
-            setActiveTimer(null);
             return 0;
           }
           return prev - 1;
@@ -408,8 +459,18 @@ const TimeBlockManager = () => {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [timer, activeTimer]);
+  }, [timerActive, activeTimerId]);
 
+  // Separate effect to handle timer completion
+  useEffect(() => {
+    if (timerSeconds === 0 && timerActive && activeTimerId) {
+      toast.success('Time block completed! 🎉');
+      setTimerActive(false);
+      setActiveTimerId(null);
+    }
+  }, [timerSeconds, timerActive, activeTimerId]);
+
+  // Storage size monitor
   useEffect(() => {
     const updateStorageSize = () => {
       setStorageSize(getLocalStorageSize());
@@ -419,12 +480,7 @@ const TimeBlockManager = () => {
     return () => clearInterval(interval);
   }, [timeBlocks, getLocalStorageSize]);
 
-  useEffect(() => {
-    if (storageSize > 4.5 * 1024 * 1024) {
-      toast.warning('localStorage is almost full. Please delete old data or export and clear.');
-    }
-  }, [storageSize]);
-
+  // Day change detector
   useEffect(() => {
     const checkNewDayAndGenerate = () => {
       const todayStr = getTodayDate();
@@ -435,13 +491,83 @@ const TimeBlockManager = () => {
     checkNewDayAndGenerate();
     const interval = setInterval(checkNewDayAndGenerate, 60000);
     return () => clearInterval(interval);
-  }, [lastGenerationDate, generateRecurringBlocks]);
+  }, [lastGenerationDate, generateRecurringBlocks, getTodayDate]);
 
-  // ---------- ক্রিয়েট/আপডেট/ডিলিট ফাংশন ----------
+  // Time remaining until midnight
+  useEffect(() => {
+    const calculateTimeRemaining = () => {
+      const now = new Date();
+      const midnight = new Date(now);
+      midnight.setHours(24, 0, 0, 0);
+      const diff = midnight - now;
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      setTimeRemaining({ hours, minutes, seconds });
+    };
+    calculateTimeRemaining();
+    const interval = setInterval(calculateTimeRemaining, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Notifications
+  useEffect(() => {
+    if (!('Notification' in window)) return;
+    if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+      Notification.requestPermission();
+    }
+
+    const checkNotifications = () => {
+      const now = new Date();
+      const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+
+      timeBlocks.forEach(block => {
+        if (!block.notifications || block.notifications.length === 0) return;
+        const isToday = !block.date || block.date === getTodayDate();
+        if (!isToday) return;
+
+        const [hour, minute] = block.start.split(':').map(Number);
+        const blockStartTime = new Date();
+        blockStartTime.setHours(hour, minute, 0, 0);
+
+        if (blockStartTime > oneHourLater || blockStartTime < now) return;
+
+        block.notifications.forEach(notif => {
+          let minutesBefore = 0;
+          if (notif.includes('5 minutes')) minutesBefore = 5;
+          else if (notif.includes('10 minutes')) minutesBefore = 10;
+          else if (notif.includes('15 minutes')) minutesBefore = 15;
+          else if (notif.includes('30 minutes')) minutesBefore = 30;
+          else if (notif.includes('1 hour')) minutesBefore = 60;
+          else if (notif.includes('At start time')) minutesBefore = 0;
+
+          const notifyTime = new Date(blockStartTime.getTime() - minutesBefore * 60000);
+          const nowTime = new Date();
+          if (Math.abs(notifyTime - nowTime) < 60000 && notifyTime >= nowTime) {
+            if (Notification.permission === 'granted') {
+              new Notification(`🔔 ${block.title}`, {
+                body: `${block.start} - ${block.end} (${minutesBefore} minutes remaining)`,
+                icon: '/favicon.ico'
+              });
+            }
+          }
+        });
+      });
+    };
+    const interval = setInterval(checkNotifications, 60000);
+    return () => clearInterval(interval);
+  }, [timeBlocks, getTodayDate]);
+
+  // ==================== CRUD OPERATIONS ====================
   const addTimeBlock = useCallback((e) => {
     e.preventDefault();
     if (!formData.title.trim()) {
       toast.error('Please enter a title');
+      return;
+    }
+    const duration = calculateDuration(formData.start, formData.end);
+    if (duration.total <= 0) {
+      toast.error('End time must be after start time');
       return;
     }
 
@@ -451,8 +577,6 @@ const TimeBlockManager = () => {
     let blockDate = null;
     if (formData.repeatType === 'none') {
       blockDate = formData.date;
-    } else {
-      blockDate = null;
     }
 
     const newBlock = {
@@ -463,11 +587,12 @@ const TimeBlockManager = () => {
       progress: 0,
       createdAt: new Date(),
       lastModified: new Date(),
-      dependencies: [],
       repeatType: formData.repeatType,
       repeatEndDate: formData.repeatEndDate,
+      repeatDayOfMonth: formData.repeatDayOfMonth,
       isTemplate: formData.isTemplate,
-      templateId: null
+      templateId: null,
+      masterId: null
     };
 
     let newBlocks = [...timeBlocks, newBlock];
@@ -482,12 +607,17 @@ const TimeBlockManager = () => {
     toast.success('Time block added successfully!');
     resetForm();
     setShowForm(false);
-  }, [formData, timeBlocks, saveToHistory]);
+  }, [formData, timeBlocks, saveToHistory, calculateDuration]);
 
   const updateTimeBlock = useCallback((e) => {
     e.preventDefault();
     if (!formData.title.trim()) {
       toast.error('Please enter a title');
+      return;
+    }
+    const duration = calculateDuration(formData.start, formData.end);
+    if (duration.total <= 0) {
+      toast.error('End time must be after start time');
       return;
     }
 
@@ -496,8 +626,6 @@ const TimeBlockManager = () => {
     let blockDate = null;
     if (formData.repeatType === 'none') {
       blockDate = formData.date;
-    } else {
-      blockDate = null;
     }
 
     const newBlocks = timeBlocks.map(block =>
@@ -507,6 +635,7 @@ const TimeBlockManager = () => {
         date: blockDate,
         repeatType: formData.repeatType,
         repeatEndDate: formData.repeatEndDate,
+        repeatDayOfMonth: formData.repeatDayOfMonth,
         isTemplate: formData.isTemplate,
         lastModified: new Date()
       } : block
@@ -518,11 +647,15 @@ const TimeBlockManager = () => {
     resetForm();
     setEditingId(null);
     setShowForm(false);
-  }, [formData, editingId, timeBlocks, saveToHistory]);
+  }, [formData, editingId, timeBlocks, saveToHistory, calculateDuration]);
 
   const deleteTimeBlock = useCallback((id) => {
+    const hasInstances = timeBlocks.some(block => block.masterId === id);
+    if (hasInstances && !window.confirm('This is a recurring master. Deleting it will also delete all its generated instances. Continue?')) {
+      return;
+    }
     const prevBlocks = [...timeBlocks];
-    const newBlocks = timeBlocks.filter(block => block.id !== id);
+    const newBlocks = timeBlocks.filter(block => block.id !== id && block.masterId !== id);
     setTimeBlocks(newBlocks);
     saveToHistory('delete', prevBlocks, newBlocks);
     toast.success('Time block deleted');
@@ -532,14 +665,20 @@ const TimeBlockManager = () => {
 
   const deleteSelectedBlocks = useCallback(() => {
     if (selectedBlocks.length === 0) return;
-    if (window.confirm(`Delete ${selectedBlocks.length} selected time blocks?`)) {
-      const prevBlocks = [...timeBlocks];
-      const newBlocks = timeBlocks.filter(block => !selectedBlocks.includes(block.id));
-      setTimeBlocks(newBlocks);
-      saveToHistory('bulk_delete', prevBlocks, newBlocks);
-      toast.success(`${selectedBlocks.length} time blocks deleted`);
-      setSelectedBlocks([]);
+    const mastersWithInstances = selectedBlocks.filter(id => {
+      const block = timeBlocks.find(b => b.id === id);
+      return block && block.repeatType !== 'none' && !block.date && timeBlocks.some(b => b.masterId === id);
+    });
+    if (mastersWithInstances.length > 0 && !window.confirm(`${mastersWithInstances.length} of the selected blocks are masters with instances. Deleting them will also delete all their instances. Continue?`)) {
+      return;
     }
+    const prevBlocks = [...timeBlocks];
+    const newBlocks = timeBlocks.filter(block => !selectedBlocks.includes(block.id) && !selectedBlocks.includes(block.masterId));
+    setTimeBlocks(newBlocks);
+    saveToHistory('bulk_delete', prevBlocks, newBlocks);
+    toast.success(`${selectedBlocks.length} time blocks deleted`);
+    setSelectedBlocks([]);
+    setShowBulkDeleteConfirm(false);
   }, [selectedBlocks, timeBlocks, saveToHistory]);
 
   const duplicateBlock = useCallback((block) => {
@@ -552,7 +691,8 @@ const TimeBlockManager = () => {
       lastModified: new Date(),
       completedDates: {},
       progress: 0,
-      templateId: null
+      templateId: null,
+      masterId: null
     };
 
     const newBlocks = [...timeBlocks, duplicated];
@@ -561,7 +701,7 @@ const TimeBlockManager = () => {
     toast.success('Time block duplicated');
   }, [timeBlocks, saveToHistory]);
 
-  const toggleComplete = useCallback((id, date = getTodayDate()) => {
+  const toggleComplete = useCallback((id, date) => {
     const prevBlocks = [...timeBlocks];
     const newBlocks = timeBlocks.map(block => {
       if (block.id !== id) return block;
@@ -599,16 +739,16 @@ const TimeBlockManager = () => {
   const startTimer = useCallback((block) => {
     const duration = calculateDuration(block.start, block.end);
     const totalSeconds = duration.total * 60;
-    setActiveTimer(block.id);
+    setActiveTimerId(block.id);
     setTimerSeconds(totalSeconds);
-    setTimer(true);
+    setTimerActive(true);
     toast.success(`Timer started for "${block.title}"`);
   }, [calculateDuration]);
 
   const stopTimer = useCallback(() => {
-    setTimer(false);
-    setActiveTimer(null);
-    toast.info('Timer stopped');
+    setTimerActive(false);
+    setActiveTimerId(null);
+    toast('Timer stopped');  // fixed: was toast.info
   }, []);
 
   const resetForm = useCallback(() => {
@@ -627,10 +767,11 @@ const TimeBlockManager = () => {
       date: getTodayDate(),
       repeatType: 'none',
       repeatEndDate: '',
+      repeatDayOfMonth: 1,
       isTemplate: false
     });
     setTagInput('');
-  }, []);
+  }, [getTodayDate]);
 
   const startEditing = useCallback((block) => {
     setEditingId(block.id);
@@ -649,10 +790,11 @@ const TimeBlockManager = () => {
       date: block.date || getTodayDate(),
       repeatType: block.repeatType || 'none',
       repeatEndDate: block.repeatEndDate || '',
+      repeatDayOfMonth: block.repeatDayOfMonth || 1,
       isTemplate: block.isTemplate || false
     });
     setShowForm(true);
-  }, []);
+  }, [getTodayDate]);
 
   const toggleSelectBlock = useCallback((id) => {
     setSelectedBlocks(prev =>
@@ -662,10 +804,13 @@ const TimeBlockManager = () => {
     );
   }, []);
 
-  // ✅ filteredBlocks (useMemo) – uses static CATEGORIES, PRIORITIES internally
+  // ==================== FILTERING & SORTING ====================
   const filteredBlocks = useMemo(() => {
     let result = timeBlocks.filter(block => {
-      // Day filter
+      if (activeDay && block.repeatType !== 'none' && !block.date) {
+        return false;
+      }
+
       if (activeDay) {
         const dayIndexToId = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
         const isRecurring = block.repeats && block.repeats.includes(activeDay);
@@ -678,12 +823,19 @@ const TimeBlockManager = () => {
         if (!isRecurring && !isOneOff && !isDateMatch) return false;
       }
 
-      // Status filter
-      const statusDate = activeDay ? (block.date || activeDay) : getTodayDate();
-      if (filterStatus === 'completed' && !block.completedDates?.[statusDate]) return false;
-      if (filterStatus === 'incomplete' && block.completedDates?.[statusDate]) return false;
+      let statusDate;
+      if (activeDay) {
+        statusDate = getDateForDayAbbr(activeDay);
+      } else {
+        statusDate = getTodayDate();
+      }
+      if (block.repeatType !== 'none' && !block.date) {
+        if (filterStatus !== 'all') return false;
+      } else {
+        if (filterStatus === 'completed' && !block.completedDates?.[statusDate]) return false;
+        if (filterStatus === 'incomplete' && block.completedDates?.[statusDate]) return false;
+      }
 
-      // Search query
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const titleMatch = block.title.toLowerCase().includes(q);
@@ -694,7 +846,6 @@ const TimeBlockManager = () => {
       return true;
     });
 
-    // Sorting
     result.sort((a, b) => {
       let aVal, bVal;
       if (sortBy === 'title') {
@@ -704,7 +855,7 @@ const TimeBlockManager = () => {
         const priorityOrder = { low: 1, medium: 2, high: 3, critical: 4 };
         aVal = priorityOrder[a.priority] || 0;
         bVal = priorityOrder[b.priority] || 0;
-      } else { // default time
+      } else {
         aVal = a.start;
         bVal = b.start;
       }
@@ -716,9 +867,8 @@ const TimeBlockManager = () => {
     });
 
     return result;
-  }, [timeBlocks, activeDay, filterStatus, searchQuery, sortBy, sortOrder]);
+  }, [timeBlocks, activeDay, filterStatus, searchQuery, sortBy, sortOrder, getDateForDayAbbr, getTodayDate]);
 
-  // ✅ selectAllBlocks – uses filteredBlocks
   const selectAllBlocks = useCallback(() => {
     const currentBlocks = filteredBlocks;
     if (selectedBlocks.length === currentBlocks.length) {
@@ -728,7 +878,7 @@ const TimeBlockManager = () => {
     }
   }, [filteredBlocks, selectedBlocks]);
 
-  // বাকি কলব্যাক
+  // ==================== FORM HELPERS ====================
   const addTag = useCallback(() => {
     if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
       setFormData({
@@ -767,7 +917,7 @@ const TimeBlockManager = () => {
     });
   }, [formData]);
 
-  // ইম্পোর্ট (নতুন আইডি জেনারেট)
+  // ==================== IMPORT/EXPORT ====================
   const importData = useCallback((event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -788,7 +938,9 @@ const TimeBlockManager = () => {
               date: migrated.date || null,
               repeatType: migrated.repeatType || 'none',
               repeatEndDate: migrated.repeatEndDate || null,
-              templateId: null
+              repeatDayOfMonth: migrated.repeatDayOfMonth || 1,
+              templateId: null,
+              masterId: null
             };
           });
           const newBlocks = [...timeBlocks, ...importedBlocks];
@@ -824,7 +976,7 @@ const TimeBlockManager = () => {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
     toast.success('Data exported successfully');
-  }, [timeBlocks, templates, stats]);
+  }, [timeBlocks, templates, stats, getTodayDate]);
 
   const clearAllBlocks = useCallback(() => {
     if (window.confirm('Are you sure you want to delete ALL time blocks? This cannot be undone.')) {
@@ -842,10 +994,11 @@ const TimeBlockManager = () => {
       date: getTodayDate(),
       repeatType: 'none',
       repeatEndDate: '',
+      repeatDayOfMonth: 1,
       isTemplate: false
     });
     setShowForm(true);
-  }, []);
+  }, [getTodayDate]);
 
   const deleteTemplate = useCallback((templateId) => {
     setTemplates(prev => prev.filter(t => t.id !== templateId));
@@ -865,11 +1018,18 @@ const TimeBlockManager = () => {
             {activeDay ? (
               <>Today's blocks: {filteredBlocks.length} • {stats.totalHours} total hours</>
             ) : (
-              <>Plan your day with precision • {stats.total} blocks • {stats.totalHours} total hours</>
+              <>Plan your day with precision • {stats.total} blocks • {stats.totalHours} total hours (excluding recurring masters)</>
             )}
           </p>
+          <div className="flex items-center gap-2 mt-2 text-sm bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 px-3 py-1 rounded-full">
+            <Sun size={16} />
+            <span>Day left: {timeRemaining.hours}h {timeRemaining.minutes}m {timeRemaining.seconds}s</span>
+          </div>
           <p className="text-xs text-gray-400 mt-1">
             Storage: {formatSize(storageSize)} used
+            {storageSize > 4.5 * 1024 * 1024 && (
+              <button onClick={cleanupOldBlocks} className="ml-2 text-red-500 underline text-xs" aria-label="Clean up old blocks">Clean up old blocks</button>
+            )}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -886,6 +1046,7 @@ const TimeBlockManager = () => {
           <button
             onClick={() => setShowTemplates(!showTemplates)}
             className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium min-h-[44px]"
+            aria-label="Toggle templates"
           >
             <Save size={20} />
             <span className="hidden xs:inline">Templates</span>
@@ -893,6 +1054,7 @@ const TimeBlockManager = () => {
           <button
             onClick={() => setShowForm(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium min-h-[44px]"
+            aria-label="Add new block"
           >
             <Plus size={20} />
             <span className="hidden xs:inline">Add</span>
@@ -900,6 +1062,7 @@ const TimeBlockManager = () => {
           <button
             onClick={clearAllBlocks}
             className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium min-h-[44px]"
+            aria-label="Clear all blocks"
           >
             <Trash2 size={16} />
             <span className="hidden xs:inline">Clear</span>
@@ -907,11 +1070,12 @@ const TimeBlockManager = () => {
           <button
             onClick={exportData}
             className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium min-h-[44px]"
+            aria-label="Export data"
           >
             <Download size={16} />
             <span className="hidden xs:inline">Export</span>
           </button>
-          <label className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-medium cursor-pointer min-h-[44px]">
+          <label className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-medium cursor-pointer min-h-[44px]" aria-label="Import data">
             <Upload size={16} />
             <span className="hidden xs:inline">Import</span>
             <input type="file" accept=".json" onChange={importData} className="hidden" />
@@ -937,7 +1101,7 @@ const TimeBlockManager = () => {
                   </div>
                   <p className="text-xs text-gray-500 mb-2">{template.start} - {template.end}</p>
                   <div className="flex gap-2">
-                    <button onClick={() => loadTemplate(template)} className="flex-1 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 min-h-[44px]">
+                    <button onClick={() => loadTemplate(template)} className="flex-1 px-2 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 min-h-[44px]" aria-label="Use template">
                       Use Template
                     </button>
                   </div>
@@ -954,7 +1118,7 @@ const TimeBlockManager = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{stats.total}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Total Blocks</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Total Blocks (daily)</div>
             </div>
             <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
               <Calendar className="text-blue-600 dark:text-blue-400" size={20} />
@@ -965,7 +1129,7 @@ const TimeBlockManager = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">{stats.completed}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Completed</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Completed Today</div>
             </div>
             <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
               <CheckCircle className="text-green-600 dark:text-green-400" size={20} />
@@ -976,7 +1140,7 @@ const TimeBlockManager = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{stats.upcoming}</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Upcoming</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Upcoming Today</div>
             </div>
             <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
               <Clock className="text-yellow-600 dark:text-yellow-400" size={20} />
@@ -987,7 +1151,7 @@ const TimeBlockManager = () => {
           <div className="flex items-center justify-between">
             <div>
               <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">{stats.totalHours}h</div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">Total Hours</div>
+              <div className="text-sm text-gray-600 dark:text-gray-400">Total Hours (daily)</div>
             </div>
             <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
               <Timer className="text-purple-600 dark:text-purple-400" size={20} />
@@ -999,7 +1163,6 @@ const TimeBlockManager = () => {
       {/* Controls Bar */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow">
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Day Selector */}
           <div className="flex-1">
             <div className="flex flex-wrap gap-1">
               {DAYS.map(day => (
@@ -1009,6 +1172,7 @@ const TimeBlockManager = () => {
                   className={`px-3 py-2 rounded-lg min-h-[44px] ${
                     activeDay === day.id ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                   }`}
+                  aria-label={`View ${day.label}`}
                 >
                   {day.short}
                 </button>
@@ -1018,12 +1182,12 @@ const TimeBlockManager = () => {
                 className={`px-3 py-2 rounded-lg min-h-[44px] ${
                   !activeDay ? 'bg-gray-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
                 }`}
+                aria-label="View all days"
               >
                 All
               </button>
             </div>
           </div>
-          {/* View Toggles & Filter */}
           <div className="flex items-center gap-2">
             <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
               {['grid', 'list', 'timeline'].map(view => (
@@ -1031,7 +1195,7 @@ const TimeBlockManager = () => {
                   key={view}
                   onClick={() => setActiveView(view)}
                   className={`p-2 rounded min-h-[44px] min-w-[44px] ${activeView === view ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
-                  aria-label={view}
+                  aria-label={`${view} view`}
                 >
                   {view === 'grid' && <Grid size={16} />}
                   {view === 'list' && <List size={16} />}
@@ -1043,7 +1207,6 @@ const TimeBlockManager = () => {
               <button
                 onClick={() => setFilterStatus('all')}
                 className={`p-2 rounded min-h-[44px] min-w-[44px] ${filterStatus === 'all' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
-                title="All tasks"
                 aria-label="All tasks"
               >
                 All
@@ -1051,7 +1214,6 @@ const TimeBlockManager = () => {
               <button
                 onClick={() => setFilterStatus('completed')}
                 className={`p-2 rounded min-h-[44px] min-w-[44px] ${filterStatus === 'completed' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
-                title="Completed only"
                 aria-label="Completed only"
               >
                 <CheckCircle size={16} />
@@ -1059,7 +1221,6 @@ const TimeBlockManager = () => {
               <button
                 onClick={() => setFilterStatus('incomplete')}
                 className={`p-2 rounded min-h-[44px] min-w-[44px] ${filterStatus === 'incomplete' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
-                title="Incomplete only"
                 aria-label="Incomplete only"
               >
                 <Clock size={16} />
@@ -1077,6 +1238,7 @@ const TimeBlockManager = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 min-h-[44px]"
+              aria-label="Search"
             />
             <Search className="absolute left-3 top-3 text-gray-400" size={16} />
           </div>
@@ -1085,6 +1247,7 @@ const TimeBlockManager = () => {
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
               className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 min-h-[44px]"
+              aria-label="Sort by"
             >
               <option value="time">Sort by Time</option>
               <option value="title">Sort by Title</option>
@@ -1112,10 +1275,10 @@ const TimeBlockManager = () => {
               </span>
             </div>
             <div className="flex gap-2">
-              <button onClick={deleteSelectedBlocks} className="px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm min-h-[44px]">
+              <button onClick={() => setShowBulkDeleteConfirm(true)} className="px-3 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg text-sm min-h-[44px]" aria-label="Delete selected blocks">
                 <Trash2 className="w-3 h-3 inline mr-1" /> Delete Selected
               </button>
-              <button onClick={selectAllBlocks} className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm min-h-[44px]">
+              <button onClick={selectAllBlocks} className="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-sm min-h-[44px]" aria-label="Select all">
                 {selectedBlocks.length === filteredBlocks.length ? 'Deselect All' : 'Select All'}
               </button>
             </div>
@@ -1124,7 +1287,7 @@ const TimeBlockManager = () => {
       </div>
 
       {/* Timer Display */}
-      {timer && activeTimer && (
+      {timerActive && activeTimerId && (
         <div className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl p-4 text-white shadow-lg">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
@@ -1134,10 +1297,10 @@ const TimeBlockManager = () => {
               </div>
               <div className="text-3xl font-mono font-bold">{formatTime(timerSeconds)}</div>
               <div className="text-sm opacity-90">
-                {timeBlocks.find(b => b.id === activeTimer)?.title}
+                {timeBlocks.find(b => b.id === activeTimerId)?.title}
               </div>
             </div>
-            <button onClick={stopTimer} className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-medium min-h-[44px]">
+            <button onClick={stopTimer} className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg font-medium min-h-[44px]" aria-label="Stop timer">
               Stop Timer
             </button>
           </div>
@@ -1146,48 +1309,68 @@ const TimeBlockManager = () => {
 
       {/* Time Blocks Grid/List/Timeline */}
       {activeView === 'timeline' ? (
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow overflow-x-auto">
-          <h3 className="text-lg font-semibold mb-4">📅 Daily Schedule ({DAYS.find(d => d.id === activeDay)?.label || 'All Days'})</h3>
-          <div className="space-y-2 min-w-[600px]">
-            {Array.from({ length: 16 }, (_, i) => {
-              const hour = i + 6;
-              const hourLabel = hour <= 12 ? `${hour} AM` : `${hour - 12} PM`;
-              const blocksInHour = filteredBlocks.filter(block => {
-                const blockStart = parseInt(block.start.split(':')[0]);
-                const blockEnd = parseInt(block.end.split(':')[0]);
-                return hour >= blockStart && hour < blockEnd;
-              });
-              return (
-                <div key={hour} className="flex items-center group">
-                  <div className="w-16 text-sm text-gray-500">{hourLabel}</div>
-                  <div className="flex-1 h-12 border-t border-gray-200 dark:border-gray-700 relative">
-                    {blocksInHour.map(block => {
-                      const blockStartHour = parseInt(block.start.split(':')[0]);
-                      const blockStartMin = parseInt(block.start.split(':')[1]);
-                      const blockEndHour = parseInt(block.end.split(':')[0]);
-                      const blockEndMin = parseInt(block.end.split(':')[1]);
-                      const startPosition = ((hour - blockStartHour) * 60 + (0 - blockStartMin)) / 60 * 100;
-                      const width = ((blockEndHour - blockStartHour) * 60 + (blockEndMin - blockStartMin)) / 60 * 100;
-                      const completionDate = block.date || activeDay;
-                      return (
-                        <div
-                          key={block.id}
-                          className={`absolute h-10 ${block.color} opacity-90 rounded px-2 flex items-center text-white text-sm cursor-pointer hover:opacity-100 hover:shadow-md transition-all`}
-                          style={{ left: `${startPosition}%`, width: `${width}%`, zIndex: block.priority === 'high' ? 10 : 1 }}
-                          title={`${block.title} (${block.start} - ${block.end})`}
-                          onClick={() => startEditing(block)}
-                        >
-                          <div className="truncate font-medium">{block.title}</div>
-                          {completionDate && block.completedDates?.[completionDate] && <CheckCircle className="ml-auto w-3 h-3 text-white" />}
-                        </div>
-                      );
-                    })}
+        activeDay ? (
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow overflow-x-auto">
+            <h3 className="text-lg font-semibold mb-4">📅 Daily Schedule ({DAYS.find(d => d.id === activeDay)?.label})</h3>
+            <div className="space-y-2 min-w-[600px]">
+              {Array.from({ length: 24 }, (_, i) => {
+                const hour = i;
+                const hourLabel = hour === 0 ? '12 AM' : hour < 12 ? `${hour} AM` : hour === 12 ? '12 PM' : `${hour - 12} PM`;
+                const blocksInHour = filteredBlocks.filter(block => {
+                  const blockStart = parseInt(block.start.split(':')[0]);
+                  const blockEnd = parseInt(block.end.split(':')[0]);
+                  const blockStartMin = parseInt(block.start.split(':')[1]);
+                  const blockEndMin = parseInt(block.end.split(':')[1]);
+                  const blockStartInMinutes = blockStart * 60 + blockStartMin;
+                  const blockEndInMinutes = blockEnd * 60 + blockEndMin;
+                  const hourStartInMinutes = hour * 60;
+                  const hourEndInMinutes = (hour + 1) * 60;
+                  return blockStartInMinutes < hourEndInMinutes && blockEndInMinutes > hourStartInMinutes;
+                });
+                return (
+                  <div key={hour} className="flex items-center group">
+                    <div className="w-16 text-sm text-gray-500">{hourLabel}</div>
+                    <div className="flex-1 h-12 border-t border-gray-200 dark:border-gray-700 relative">
+                      {blocksInHour.map(block => {
+                        const blockStartHour = parseInt(block.start.split(':')[0]);
+                        const blockStartMin = parseInt(block.start.split(':')[1]);
+                        const blockEndHour = parseInt(block.end.split(':')[0]);
+                        const blockEndMin = parseInt(block.end.split(':')[1]);
+                        const blockStartInMinutes = blockStartHour * 60 + blockStartMin;
+                        const blockEndInMinutes = blockEndHour * 60 + blockEndMin;
+                        const hourStartInMinutes = hour * 60;
+                        const hourEndInMinutes = (hour + 1) * 60;
+                        const overlapStart = Math.max(blockStartInMinutes, hourStartInMinutes);
+                        const overlapEnd = Math.min(blockEndInMinutes, hourEndInMinutes);
+                        const left = ((overlapStart - hourStartInMinutes) / 60) * 100;
+                        const width = ((overlapEnd - overlapStart) / 60) * 100;
+                        const completionDate = activeDay ? getDateForDayAbbr(activeDay) : (block.date || today);
+                        return (
+                          <div
+                            key={block.id}
+                            className={`absolute h-10 ${block.color} opacity-90 rounded px-2 flex items-center text-white text-sm cursor-pointer hover:opacity-100 hover:shadow-md transition-all`}
+                            style={{ left: `${left}%`, width: `${width}%`, zIndex: block.priority === 'high' ? 10 : 1 }}
+                            title={`${block.title} (${block.start} - ${block.end})`}
+                            onClick={() => startEditing(block)}
+                          >
+                            <div className="truncate font-medium">{block.title}</div>
+                            {completionDate && block.completedDates?.[completionDate] && <CheckCircle className="ml-auto w-3 h-3 text-white" />}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="bg-white dark:bg-gray-800 rounded-xl p-8 text-center shadow">
+            <CalendarIcon className="w-12 h-12 mx-auto text-gray-400 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Timeline View Requires a Day</h3>
+            <p className="text-gray-600 dark:text-gray-400">Please select a specific day from the top to see the timeline.</p>
+          </div>
+        )
       ) : (
         <div className={`${activeView === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3' : 'space-y-4'} gap-4`}>
           {filteredBlocks.length === 0 ? (
@@ -1204,9 +1387,10 @@ const TimeBlockManager = () => {
               const CategoryIcon = CATEGORIES.find(c => c.id === block.category)?.icon || Briefcase;
               const PriorityIcon = PRIORITIES.find(p => p.id === block.priority)?.icon || ChevronUp;
               const isSelected = selectedBlocks.includes(block.id);
-              const isActiveTimer = activeTimer === block.id;
-              const completionDate = activeDay || block.date || today;
+              const isActiveTimer = activeTimerId === block.id;
+              const completionDate = activeDay ? getDateForDayAbbr(activeDay) : (block.date || today);
               const isCompletedOnThisDay = block.completedDates?.[completionDate] || false;
+              const isMasterBlock = block.repeatType !== 'none' && !block.date;
 
               return (
                 <div key={block.id} className={`bg-white dark:bg-gray-800 rounded-xl border ${isSelected ? 'border-blue-500 ring-2 ring-blue-200 dark:ring-blue-800' : 'border-gray-200 dark:border-gray-700'} shadow-sm overflow-hidden relative group`}>
@@ -1220,9 +1404,16 @@ const TimeBlockManager = () => {
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          {isCompletedOnThisDay ? <CheckCircle className="text-green-500" size={18} /> : <Clock className="text-gray-400" size={18} />}
+                          {isMasterBlock ? (
+                            <Repeat className="text-purple-500" size={18} />
+                          ) : isCompletedOnThisDay ? (
+                            <CheckCircle className="text-green-500" size={18} />
+                          ) : (
+                            <Clock className="text-gray-400" size={18} />
+                          )}
                           <h3 className={`font-bold text-lg ${isCompletedOnThisDay ? 'line-through text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'}`}>
                             {block.title}
+                            {isMasterBlock && <span className="ml-2 text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">🔄 Recurring Master</span>}
                           </h3>
                         </div>
                         <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400 mb-2 flex-wrap">
@@ -1236,10 +1427,13 @@ const TimeBlockManager = () => {
                               <Calendar size={12} /> {block.date}
                             </span>
                           )}
-                          {block.repeatType !== 'none' && (
+                          {block.repeatType !== 'none' && !block.date && (
                             <span className="flex items-center gap-1 text-xs bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">
                               <Repeat size={12} /> {block.repeatType}
                             </span>
+                          )}
+                          {block.repeatEndDate && (
+                            <span className="text-xs text-gray-400">until {block.repeatEndDate}</span>
                           )}
                         </div>
                       </div>
@@ -1254,24 +1448,24 @@ const TimeBlockManager = () => {
                     )}
                     <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-gray-700">
                       <div className="flex items-center gap-2">
-                        {activeDay ? (
+                        {activeDay && !isMasterBlock ? (
                           <button onClick={() => toggleComplete(block.id, completionDate)} className={`p-2 rounded min-h-[44px] min-w-[44px] ${isCompletedOnThisDay ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'}`} title={isCompletedOnThisDay ? "Mark incomplete" : "Mark complete"} aria-label={isCompletedOnThisDay ? "Mark incomplete" : "Mark complete"}>
                             {isCompletedOnThisDay ? <CheckCircle size={16} /> : <XCircle size={16} />}
                           </button>
-                        ) : (
+                        ) : !isMasterBlock ? (
                           <span className="p-2 rounded bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed min-h-[44px] min-w-[44px] flex items-center justify-center" title="Select a day to mark completion">
                             <XCircle size={16} />
                           </span>
-                        )}
-                        {!isActiveTimer ? (
+                        ) : null}
+                        {!isMasterBlock && !isActiveTimer ? (
                           <button onClick={() => startTimer(block)} className="p-2 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 min-h-[44px] min-w-[44px]" title="Start timer" aria-label="Start timer">
                             <Play size={16} />
                           </button>
-                        ) : (
+                        ) : !isMasterBlock && isActiveTimer ? (
                           <button onClick={stopTimer} className="p-2 rounded bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 min-h-[44px] min-w-[44px]" title="Stop timer" aria-label="Stop timer">
                             <StopCircle size={16} />
                           </button>
-                        )}
+                        ) : null}
                         <button onClick={() => startEditing(block)} className="p-2 rounded bg-yellow-100 dark:bg-yellow-900/30 text-yellow-600 dark:text-yellow-400 min-h-[44px] min-w-[44px]" title="Edit" aria-label="Edit">
                           <Edit2 size={16} />
                         </button>
@@ -1287,13 +1481,15 @@ const TimeBlockManager = () => {
                         {PRIORITIES.find(p => p.id === block.priority)?.label}
                       </div>
                     </div>
-                    <div className="mt-3">
-                      <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                        <span>Progress</span>
-                        <span>{block.progress}%</span>
+                    {!isMasterBlock && (
+                      <div className="mt-3">
+                        <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
+                          <span>Progress</span>
+                          <span>{block.progress}%</span>
+                        </div>
+                        <input type="range" min="0" max="100" value={block.progress} onChange={(e) => updateProgress(block.id, parseInt(e.target.value))} className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer" aria-label="Progress slider" />
                       </div>
-                      <input type="range" min="0" max="100" value={block.progress} onChange={(e) => updateProgress(block.id, parseInt(e.target.value))} className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-lg appearance-none cursor-pointer" aria-label="Progress slider" />
-                    </div>
+                    )}
                   </div>
                 </div>
               );
@@ -1353,6 +1549,22 @@ const TimeBlockManager = () => {
                     })}
                   </div>
                 </div>
+
+                {/* Repeat Day of Month (for monthly) */}
+                {formData.repeatType === 'monthly' && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Repeat on day of month</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="31"
+                      value={formData.repeatDayOfMonth}
+                      onChange={(e) => setFormData({...formData, repeatDayOfMonth: parseInt(e.target.value) || 1})}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 min-h-[44px]"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">For months with fewer days, the last day of the month will be used.</p>
+                  </div>
+                )}
 
                 {/* Repeat End Date */}
                 {formData.repeatType !== 'none' && (
@@ -1454,7 +1666,14 @@ const TimeBlockManager = () => {
                 <div>
                   <label className="block text-sm font-medium mb-2">Tags</label>
                   <div className="flex gap-2 mb-2">
-                    <input type="text" className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 min-h-[44px]" placeholder="Add a tag" value={tagInput} onChange={(e) => setTagInput(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())} />
+                    <input
+                      type="text"
+                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 min-h-[44px]"
+                      placeholder="Add a tag"
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                    />
                     <button type="button" onClick={addTag} className="px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 min-h-[44px] min-w-[44px]" aria-label="Add tag">
                       <Plus className="w-4 h-4" />
                     </button>
@@ -1503,7 +1722,7 @@ const TimeBlockManager = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirmation Modal for single delete */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6">
@@ -1519,6 +1738,29 @@ const TimeBlockManager = () => {
                 Cancel
               </button>
               <button onClick={() => deleteTimeBlock(showDeleteConfirm)} className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium min-h-[44px]">
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl max-w-md w-full p-6">
+            <div className="text-center mb-6">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="text-red-600 dark:text-red-400" size={24} />
+              </div>
+              <h3 className="text-lg font-semibold mb-2">Delete Selected Blocks</h3>
+              <p className="text-gray-600 dark:text-gray-400">Are you sure you want to delete {selectedBlocks.length} selected block(s)? This action cannot be undone.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setShowBulkDeleteConfirm(false)} className="flex-1 py-2 border border-gray-300 dark:border-gray-600 rounded-lg font-medium hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
+                Cancel
+              </button>
+              <button onClick={deleteSelectedBlocks} className="flex-1 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium min-h-[44px]">
                 Delete
               </button>
             </div>

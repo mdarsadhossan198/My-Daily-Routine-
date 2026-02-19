@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   CheckCircle, Clock, Play, Pause, StopCircle, Timer,
@@ -6,35 +6,41 @@ import {
   Heart, BookOpen, Briefcase, Dumbbell, Home, Palette,
   Users, DollarSign, Download, Upload, Target, TrendingUp,
   Award, Sun, Bell, BellOff, Grid, List, Filter, Settings,
-  RotateCcw, Sparkles, Volume2, TrendingUp as TrendingIcon,
-  BarChart2
+  RotateCcw, Sparkles, Volume2, BarChart2
 } from 'lucide-react';
 
 const STORAGE_KEY = 'advancedTimeBlocks';
+const TIMER_STORAGE_KEY = 'activeTimer';
 
-// ---------- migrate ----------
+// Helper: get local date string YYYY-MM-DD
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// ---------- Migration (update old data) ----------
 const migrateBlock = (block) => {
-  const newBlock = { ...block };
-  if (newBlock.completed !== undefined && newBlock.completedDate && !newBlock.completedDates) {
-    newBlock.completedDates = { [newBlock.completedDate]: true };
+  const { completed, completedDate, ...rest } = block;
+  const newBlock = { ...rest };
+  if (completed !== undefined && completedDate && !newBlock.completedDates) {
+    newBlock.completedDates = { [completedDate]: true };
   }
   if (!newBlock.completedDates) newBlock.completedDates = {};
-  delete newBlock.completed;
-  delete newBlock.completedDate;
   return newBlock;
 };
 
 const ActivityLog = () => {
-  const getTodayDate = () => new Date().toISOString().split('T')[0];
+  const getTodayDate = () => getLocalDateString();
 
   // ---------- State ----------
   const [timeBlocks, setTimeBlocks] = useState([]);
   const [activeTimer, setActiveTimer] = useState(null);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [timerPaused, setTimerPaused] = useState(false);
-  const [timerStartTime, setTimerStartTime] = useState(null);
 
-  // UI settings
+  // UI Settings
   const [viewMode, setViewMode] = useState(() => localStorage.getItem('activityLogViewMode') || 'list');
   const [filterStatus, setFilterStatus] = useState(() => localStorage.getItem('filterStatus') || 'all');
   const [filterCategory, setFilterCategory] = useState(() => localStorage.getItem('filterCategory') || 'all');
@@ -44,7 +50,7 @@ const ActivityLog = () => {
     return saved ? parseInt(saved, 10) : 3;
   });
 
-  // Advanced settings
+  // Advanced Settings
   const [notificationsEnabled, setNotificationsEnabled] = useState(() => {
     const saved = localStorage.getItem('notificationsEnabled');
     return saved ? JSON.parse(saved) : false;
@@ -79,15 +85,10 @@ const ActivityLog = () => {
   const [notificationPermission, setNotificationPermission] = useState(Notification.permission);
   const audioRef = useRef(null);
 
-  // Statistics
-  const [todayCompleted, setTodayCompleted] = useState(0);
-  const [yesterdayCompleted, setYesterdayCompleted] = useState(0);
-  const [weekCompleted, setWeekCompleted] = useState(0);
-  const [totalTimeSpentToday, setTotalTimeSpentToday] = useState(0);
-  const [totalTimeSpentWeek, setTotalTimeSpentWeek] = useState(0);
-  const [productivityScore, setProductivityScore] = useState(0);
+  // Flag to prevent infinite loop when dispatching our own events
+  const skipNextEvent = useRef(false);
 
-  // ---------- Responsive grid columns ----------
+  // ---------- Responsive Grid Columns ----------
   useEffect(() => {
     const handleResize = () => {
       const width = window.innerWidth;
@@ -107,8 +108,8 @@ const ActivityLog = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // ---------- Load from storage ----------
-  const loadTimeBlocks = () => {
+  // ---------- Load & Storage Sync ----------
+  const loadTimeBlocks = useCallback(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -121,20 +122,75 @@ const ActivityLog = () => {
     } catch (error) {
       console.error('Error loading time blocks:', error);
     }
-  };
+  }, []);
+
+  const loadTimer = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(TIMER_STORAGE_KEY);
+      if (saved) {
+        const { id, seconds, paused } = JSON.parse(saved);
+        setActiveTimer(id);
+        setTimerSeconds(seconds);
+        setTimerPaused(paused);
+      }
+    } catch (e) {}
+  }, []);
 
   useEffect(() => {
     loadTimeBlocks();
+    loadTimer();
+  }, [loadTimeBlocks, loadTimer]);
+
+  // Listen to changes from other tabs / same tab
+  useEffect(() => {
     const handleStorageChange = (e) => {
       if (e.key === STORAGE_KEY) {
         loadTimeBlocks();
       }
+      if (e.key === TIMER_STORAGE_KEY) {
+        loadTimer();
+      }
+    };
+    const handleCustomEvent = () => {
+      // If we dispatched this event ourselves, ignore it to avoid loops
+      if (skipNextEvent.current) {
+        skipNextEvent.current = false;
+        return;
+      }
+      loadTimeBlocks();
     };
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
+    window.addEventListener('timeBlocksStorageChanged', handleCustomEvent);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('timeBlocksStorageChanged', handleCustomEvent);
+    };
+  }, [loadTimeBlocks, loadTimer]);
 
-  // Persist settings
+  // Dispatch events after timeBlocks changes (but only if the change came from this component)
+  useEffect(() => {
+    // Only dispatch if there was a real change (skip initial mount if desired)
+    if (timeBlocks.length > 0) {
+      skipNextEvent.current = true; // mark that the next custom event comes from us
+      window.dispatchEvent(new Event('storage'));
+      window.dispatchEvent(new CustomEvent('timeBlocksStorageChanged'));
+    }
+  }, [timeBlocks]);
+
+  // Save timer state to localStorage
+  useEffect(() => {
+    if (activeTimer) {
+      localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify({
+        id: activeTimer,
+        seconds: timerSeconds,
+        paused: timerPaused,
+      }));
+    } else {
+      localStorage.removeItem(TIMER_STORAGE_KEY);
+    }
+  }, [activeTimer, timerSeconds, timerPaused]);
+
+  // Save settings to localStorage
   useEffect(() => {
     localStorage.setItem('activityLogViewMode', viewMode);
   }, [viewMode]);
@@ -174,34 +230,31 @@ const ActivityLog = () => {
     localStorage.setItem('focusMode', JSON.stringify(focusMode));
   }, [focusMode]);
 
-  // Load timer from localStorage
-  useEffect(() => {
-    const savedTimer = localStorage.getItem('activeTimer');
-    if (savedTimer) {
-      try {
-        const { id, seconds, paused, startTime } = JSON.parse(savedTimer);
-        setActiveTimer(id);
-        setTimerSeconds(seconds);
-        setTimerPaused(paused);
-        setTimerStartTime(startTime);
-      } catch (e) {}
-    }
+  // ---------- Timer Logic ----------
+  const stopTimer = useCallback(() => {
+    setActiveTimer(null);
+    setTimerPaused(false);
+    toast('Timer stopped');
   }, []);
 
-  useEffect(() => {
-    if (activeTimer) {
-      localStorage.setItem('activeTimer', JSON.stringify({
-        id: activeTimer,
-        seconds: timerSeconds,
-        paused: timerPaused,
-        startTime: timerStartTime
-      }));
-    } else {
-      localStorage.removeItem('activeTimer');
+  const handleTimerComplete = useCallback(() => {
+    if (autoCompleteEnabled && activeTimer) {
+      toggleComplete(activeTimer, getTodayDate(), true);
     }
-  }, [activeTimer, timerSeconds, timerPaused, timerStartTime]);
+    toast.success('Timer finished! 🎉', { duration: 5000 });
+    if (soundEnabled) playSound();
+    if (notificationsEnabled && notificationPermission === 'granted') {
+      const task = timeBlocks.find(t => t.id === activeTimer);
+      if (task) {
+        new Notification('Timer Finished', {
+          body: `Great job on "${task.title}"!`,
+          icon: '/favicon.ico'
+        });
+      }
+    }
+    stopTimer();
+  }, [autoCompleteEnabled, activeTimer, soundEnabled, notificationsEnabled, notificationPermission, timeBlocks, stopTimer]);
 
-  // ---------- Timer ----------
   useEffect(() => {
     let interval;
     if (activeTimer && !timerPaused) {
@@ -217,27 +270,9 @@ const ActivityLog = () => {
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [activeTimer, timerPaused]);
+  }, [activeTimer, timerPaused, handleTimerComplete]);
 
-  const handleTimerComplete = () => {
-    if (autoCompleteEnabled && activeTimer) {
-      toggleComplete(activeTimer, getTodayDate(), true);
-    }
-    toast.success('Timer finished! 🎉', { duration: 5000 });
-    if (soundEnabled) playSound();
-    if (notificationsEnabled && notificationPermission === 'granted') {
-      const task = timeBlocks.find(t => t.id === activeTimer);
-      new Notification('Timer Finished', {
-        body: `Great job on "${task?.title}"!`,
-        icon: '/favicon.ico'
-      });
-    }
-    setActiveTimer(null);
-    setTimerPaused(false);
-    setTimerStartTime(null);
-  };
-
-  const startTimer = (block) => {
+  const startTimer = useCallback((block) => {
     if (block.date !== getTodayDate()) {
       toast.error('You can only start timer for today\'s tasks');
       return;
@@ -250,45 +285,24 @@ const ActivityLog = () => {
     setActiveTimer(block.id);
     setTimerSeconds(totalSeconds);
     setTimerPaused(false);
-    setTimerStartTime(Date.now());
     toast.success(`Timer started for "${block.title}"`);
-  };
+  }, [activeTimer, stopTimer]);
 
-  const pauseTimer = () => {
+  const pauseTimer = useCallback(() => {
     setTimerPaused(prev => !prev);
-    if (!timerPaused) {
-      setTimerStartTime(null);
-    } else {
-      setTimerStartTime(Date.now());
-    }
-  };
+  }, []);
 
-  const stopTimer = () => {
-    setActiveTimer(null);
-    setTimerPaused(false);
-    setTimerStartTime(null);
-    toast.info('Timer stopped');
-  };
-
-  const resetTimer = () => {
+  const resetTimer = useCallback(() => {
     if (!activeTimer) return;
     const block = timeBlocks.find(t => t.id === activeTimer);
     if (block) {
       const duration = calculateDuration(block.start, block.end);
       setTimerSeconds(duration.total * 60);
       setTimerPaused(false);
-      setTimerStartTime(Date.now());
     }
-  };
+  }, [activeTimer, timeBlocks]);
 
-  const setTimerPreset = (minutes) => {
-    if (!activeTimer) return;
-    setTimerSeconds(minutes * 60);
-    setTimerPaused(false);
-    setTimerStartTime(Date.now());
-  };
-
-  // Keyboard shortcut
+  // Keyboard shortcut (space)
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.code === 'Space' && activeTimer) {
@@ -298,7 +312,7 @@ const ActivityLog = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTimer]);
+  }, [activeTimer, pauseTimer]);
 
   // ---------- Helper Functions ----------
   const formatTime = (seconds) => {
@@ -322,11 +336,21 @@ const ActivityLog = () => {
     return { total, hours, minutes, display: hours > 0 ? `${hours}h${minutes > 0 ? ` ${minutes}m` : ''}` : `${minutes}m` };
   };
 
-  const isTaskCompletedOnDate = (task, date) => {
-    return task.completedDates?.[date] || false;
-  };
+  // ---------- Toggle Complete (FIXED) ----------
+  const toggleComplete = useCallback((id, date = getTodayDate(), silent = false) => {
+    // Find the task and determine its current completion status
+    const task = timeBlocks.find(t => t.id === id);
+    if (!task) return;
 
-  const toggleComplete = (id, date = getTodayDate(), silent = false) => {
+    const wasCompleted = task.completedDates?.[date] || false;
+    const nowCompleted = !wasCompleted;
+
+    // Stop timer if this task is currently active
+    if (activeTimer === id) {
+      stopTimer();
+    }
+
+    // Update state optimistically
     setTimeBlocks(prev => {
       const updated = prev.map(block => {
         if (block.id !== id) return block;
@@ -343,17 +367,17 @@ const ActivityLog = () => {
         };
       });
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-      if (!silent) {
-        const task = updated.find(b => b.id === id);
-        const isCompletedNow = task.completedDates?.[date] || false;
-        toast.success(isCompletedNow ? 'Task completed! 🎉' : 'Task uncompleted');
-      }
       return updated;
     });
-  };
 
-  // ---------- Filter today's tasks (FIXED) ----------
-  const getTodayTasks = () => {
+    // Show toast based on the new status (computed before update)
+    if (!silent) {
+      toast.success(nowCompleted ? 'Task completed! 🎉' : 'Task uncompleted');
+    }
+  }, [activeTimer, stopTimer, timeBlocks]);
+
+  // ---------- Memoized Derived Data ----------
+  const todayTasks = useMemo(() => {
     const todayStr = getTodayDate();
     const dayIndexToId = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     const todayDayAbbr = dayIndexToId[new Date(todayStr).getDay()];
@@ -365,10 +389,9 @@ const ActivityLog = () => {
       if (block.scheduledDay === todayDayAbbr) return true;
       return false;
     });
-  };
+  }, [timeBlocks]);
 
-  const getFilteredTasks = () => {
-    const todayTasks = getTodayTasks();
+  const filteredTasks = useMemo(() => {
     const todayStr = getTodayDate();
     let filtered = todayTasks;
 
@@ -381,10 +404,10 @@ const ActivityLog = () => {
       filtered = filtered.filter(t => t.category === filterCategory);
     }
     return filtered;
-  };
+  }, [todayTasks, filterStatus, filterCategory]);
 
-  const getSortedTasks = (tasks) => {
-    const sorted = [...tasks];
+  const displayedTasks = useMemo(() => {
+    const sorted = [...filteredTasks];
     if (sortBy === 'time') {
       sorted.sort((a, b) => (a.start || '').localeCompare(b.start || ''));
     } else if (sortBy === 'priority') {
@@ -394,17 +417,17 @@ const ActivityLog = () => {
       sorted.sort((a, b) => a.title.localeCompare(b.title));
     }
     return sorted;
-  };
+  }, [filteredTasks, sortBy]);
 
-  const todayTasks = getTodayTasks();
-  const filteredTasks = getFilteredTasks();
-  const displayedTasks = getSortedTasks(filteredTasks);
-
-  // Statistics calculation
-  useEffect(() => {
+  // ---------- Statistics ----------
+  const { todayCompleted, yesterdayCompleted, weekCompleted, totalTimeSpentToday, totalTimeSpentWeek, productivityScore } = useMemo(() => {
     const todayStr = getTodayDate();
-    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0];
-    const weekAgoStr = new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0];
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterday);
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const weekAgoStr = getLocalDateString(weekAgo);
 
     let todayCount = 0, yesterdayCount = 0, weekCount = 0;
     let todayMinutes = 0, weekMinutes = 0;
@@ -429,20 +452,21 @@ const ActivityLog = () => {
       }
     });
 
-    setTodayCompleted(todayCount);
-    setYesterdayCompleted(yesterdayCount);
-    setWeekCompleted(weekCount);
-    setTotalTimeSpentToday(todayMinutes);
-    setTotalTimeSpentWeek(weekMinutes);
-
-    // Productivity score: weighted average of completion rate and time
     const rate = todayTasks.length ? (todayCount / todayTasks.length) * 100 : 0;
-    const timeScore = Math.min(100, (todayMinutes / (dailyGoal * 25)) * 100); // assuming 25 min per task
+    const timeScore = Math.min(100, (todayMinutes / (dailyGoal * 25)) * 100);
     const score = Math.round((rate * 0.7 + timeScore * 0.3));
-    setProductivityScore(score);
-  }, [timeBlocks, dailyGoal]);
 
-  // Constants
+    return {
+      todayCompleted: todayCount,
+      yesterdayCompleted: yesterdayCount,
+      weekCompleted: weekCount,
+      totalTimeSpentToday: todayMinutes,
+      totalTimeSpentWeek: weekMinutes,
+      productivityScore: score
+    };
+  }, [timeBlocks, todayTasks, dailyGoal]);
+
+  // ---------- Constants ----------
   const categories = [
     { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300', borderColor: 'border-blue-200 dark:border-blue-800' },
     { id: 'health', label: 'Health', icon: Heart, color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300', borderColor: 'border-red-200 dark:border-red-800' },
@@ -472,8 +496,99 @@ const ActivityLog = () => {
     return 'Good Evening 🌙';
   };
 
+  // ---------- Notifications ----------
+  const requestNotificationPermission = async () => {
+    if (notificationPermission === 'granted') return;
+    try {
+      const perm = await Notification.requestPermission();
+      setNotificationPermission(perm);
+      if (perm === 'granted') toast.success('Notifications enabled!');
+    } catch (error) {
+      console.error('Error requesting notification permission:', error);
+    }
+  };
+
+  const toggleNotifications = () => {
+    if (!notificationsEnabled && notificationPermission !== 'granted') {
+      requestNotificationPermission().then(() => {
+        setNotificationsEnabled(true);
+      });
+    } else {
+      setNotificationsEnabled(!notificationsEnabled);
+    }
+  };
+
+  // ---------- Sound ----------
+  const playSound = useCallback(() => {
+    if (!soundEnabled) return;
+    if (!audioRef.current) {
+      audioRef.current = new Audio();
+    }
+    const soundUrls = {
+      bell: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3',
+      chime: 'https://www.soundjay.com/misc/sounds/bell-chime.mp3',
+      digital: 'https://www.soundjay.com/phone/sounds/phone-ring-02.mp3'
+    };
+    audioRef.current.src = soundUrls[soundOption] || soundUrls.bell;
+    audioRef.current.play().catch(e => console.log('Audio play failed:', e));
+  }, [soundEnabled, soundOption]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      const soundUrls = {
+        bell: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3',
+        chime: 'https://www.soundjay.com/misc/sounds/bell-chime.mp3',
+        digital: 'https://www.soundjay.com/phone/sounds/phone-ring-02.mp3'
+      };
+      audioRef.current.src = soundUrls[soundOption] || soundUrls.bell;
+    }
+  }, [soundOption]);
+
+  // ---------- Task Reminders ----------
+  useEffect(() => {
+    if (!notificationsEnabled || notificationPermission !== 'granted') return;
+    const checkUpcomingTasks = () => {
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const todayStr = getTodayDate();
+
+      timeBlocks.forEach(task => {
+        const isCompletedToday = task.completedDates?.[todayStr] || false;
+        if (!isCompletedToday && task.date === todayStr && task.start && task.start.trim() === currentTime) {
+          new Notification('⏰ Task Reminder', {
+            body: `It's time to start: ${task.title}`,
+            icon: '/favicon.ico'
+          });
+        }
+      });
+    };
+    const interval = setInterval(checkUpcomingTasks, 30000);
+    return () => clearInterval(interval);
+  }, [notificationsEnabled, notificationPermission, timeBlocks]);
+
+  // ---------- Heatmap Data ----------
+  const heatmapData = useMemo(() => {
+    const days = [];
+    const today = new Date();
+    for (let i = 29; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      days.push({ date: getLocalDateString(date), count: 0 });
+    }
+    timeBlocks.forEach(block => {
+      if (block.completedDates) {
+        Object.keys(block.completedDates).forEach(dateStr => {
+          const day = days.find(d => d.date === dateStr);
+          if (day) day.count++;
+        });
+      }
+    });
+    return days;
+  }, [timeBlocks]);
+
+  // ---------- Export / Import ----------
   const exportData = () => {
-    const data = { version: '3.1', exportDate: new Date().toISOString(), timeBlocks };
+    const data = { version: '3.1', exportDate: getLocalDateString(), timeBlocks };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -508,184 +623,8 @@ const ActivityLog = () => {
 
   const todayStr = getTodayDate();
 
-  // ---------- Notifications ----------
-  const requestNotificationPermission = async () => {
-    if (notificationPermission === 'granted') return;
-    try {
-      const perm = await Notification.requestPermission();
-      setNotificationPermission(perm);
-      if (perm === 'granted') toast.success('Notifications enabled!');
-    } catch (error) {
-      console.error('Error requesting notification permission:', error);
-    }
-  };
-
-  const toggleNotifications = () => {
-    if (!notificationsEnabled && notificationPermission !== 'granted') {
-      requestNotificationPermission().then(() => {
-        setNotificationsEnabled(true);
-      });
-    } else {
-      setNotificationsEnabled(!notificationsEnabled);
-    }
-  };
-
-  const playSound = () => {
-    if (!soundEnabled) return;
-    if (!audioRef.current) {
-      audioRef.current = new Audio();
-    }
-    const soundUrls = {
-      bell: 'https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3',
-      chime: 'https://www.soundjay.com/misc/sounds/bell-chime.mp3',
-      digital: 'https://www.soundjay.com/phone/sounds/phone-ring-02.mp3'
-    };
-    audioRef.current.src = soundUrls[soundOption] || soundUrls.bell;
-    audioRef.current.play().catch(e => console.log('Audio play failed:', e));
-  };
-
-  // Task reminder
-  useEffect(() => {
-    if (!notificationsEnabled || notificationPermission !== 'granted') return;
-    const checkUpcomingTasks = () => {
-      const now = new Date();
-      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      const todayStr = getTodayDate();
-
-      timeBlocks.forEach(task => {
-        const isCompletedToday = task.completedDates?.[todayStr] || false;
-        if (!isCompletedToday && task.date === todayStr && task.start && task.start.trim() === currentTime) {
-          new Notification('⏰ Task Reminder', {
-            body: `It's time to start: ${task.title}`,
-            icon: '/favicon.ico'
-          });
-        }
-      });
-    };
-    const interval = setInterval(checkUpcomingTasks, 30000);
-    return () => clearInterval(interval);
-  }, [notificationsEnabled, notificationPermission, timeBlocks]);
-
-  // Heatmap data (last 30 days)
-  const heatmapData = () => {
-    const days = [];
-    const today = new Date();
-    for (let i = 29; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      let count = 0;
-      timeBlocks.forEach(block => {
-        if (block.completedDates?.[dateStr]) count++;
-      });
-      days.push({ date: dateStr, count });
-    }
-    return days;
-  };
-
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {getGreeting()}
-            </h2>
-            {productivityScore > 0 && (
-              <span className="ml-2 px-3 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full text-sm font-medium shadow-lg flex items-center gap-1">
-                <Sparkles size={16} /> Score {productivityScore}
-              </span>
-            )}
-          </div>
-          <p className="text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-2">
-            <Calendar size={16} className="text-blue-500" />
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          </p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
-          <button
-            onClick={toggleNotifications}
-            className={`px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all min-h-[44px] ${
-              notificationsEnabled
-                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white'
-                : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-            }`}
-            title={notificationsEnabled ? 'Disable notifications' : 'Enable notifications'}
-          >
-            {notificationsEnabled ? <Bell size={16} /> : <BellOff size={16} />}
-            {notificationsEnabled ? 'On' : 'Off'}
-          </button>
-
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all min-h-[44px]"
-            title="Settings"
-          >
-            <Settings size={16} /> Settings
-          </button>
-
-          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-2 rounded min-h-[44px] min-w-[44px] ${viewMode === 'list' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
-              title="List view"
-            >
-              <List size={20} />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-2 rounded min-h-[44px] min-w-[44px] ${viewMode === 'grid' ? 'bg-white dark:bg-gray-600 shadow' : ''}`}
-              title="Grid view"
-            >
-              <Grid size={20} />
-            </button>
-          </div>
-
-          {viewMode === 'grid' && (
-            <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-              {[2, 3, 4].map(cols => (
-                <button
-                  key={cols}
-                  onClick={() => {
-                    if (window.innerWidth < 640 && cols > 1) {
-                      toast.error('On mobile, only 1 column is available');
-                      return;
-                    }
-                    setGridColumns(cols);
-                  }}
-                  className={`px-3 py-1 rounded text-sm font-medium transition min-h-[44px] ${
-                    gridColumns === cols ? 'bg-white dark:bg-gray-600 shadow' : ''
-                  }`}
-                  disabled={window.innerWidth < 640 && cols > 1}
-                >
-                  {cols} cols
-                </button>
-              ))}
-            </div>
-          )}
-
-          <button
-            onClick={() => setShowHeatmap(!showHeatmap)}
-            className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all min-h-[44px]"
-            title="Show heatmap"
-          >
-            <BarChart2 size={16} /> Heatmap
-          </button>
-
-          <button
-            onClick={exportData}
-            className="px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all min-h-[44px]"
-          >
-            <Download size={16} /> Export
-          </button>
-          <label className="px-4 py-2 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-lg text-sm font-medium flex items-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer min-h-[44px]">
-            <Upload size={16} /> Import
-            <input type="file" accept=".json" onChange={importData} className="hidden" />
-          </label>
-        </div>
-      </div>
-
       {/* Heatmap */}
       {showHeatmap && (
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow-lg border border-gray-200 dark:border-gray-700">
@@ -693,7 +632,7 @@ const ActivityLog = () => {
             <BarChart2 size={16} /> Last 30 Days Completion Heatmap
           </h3>
           <div className="grid grid-cols-10 gap-1">
-            {heatmapData().map((day, idx) => {
+            {heatmapData.map((day, idx) => {
               let intensity = day.count === 0 ? 'bg-gray-100 dark:bg-gray-700' :
                 day.count === 1 ? 'bg-green-200 dark:bg-green-800' :
                 day.count === 2 ? 'bg-green-300 dark:bg-green-700' :
@@ -787,7 +726,7 @@ const ActivityLog = () => {
         </div>
       )}
 
-      {/* Filters and Sorting */}
+      {/* Filter & Sort */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-3 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex flex-wrap items-center gap-2">
           <Filter size={18} className="text-gray-500 dark:text-gray-400" />
@@ -869,7 +808,7 @@ const ActivityLog = () => {
                 {(() => {
                   const task = timeBlocks.find(t => t.id === activeTimer);
                   const totalSecs = calculateDuration(task?.start, task?.end).total * 60;
-                  const percent = ((totalSecs - timerSeconds) / totalSecs) * 100;
+                  const percent = totalSecs ? ((totalSecs - timerSeconds) / totalSecs) * 100 : 0;
                   return (
                     <div className="w-64 h-2 bg-white/30 rounded-full mt-2">
                       <div
@@ -879,18 +818,6 @@ const ActivityLog = () => {
                     </div>
                   );
                 })()}
-                {/* Quick preset buttons */}
-                <div className="flex gap-2 mt-3">
-                  {[5, 15, 25, 30, 45, 60].map(min => (
-                    <button
-                      key={min}
-                      onClick={() => setTimerPreset(min)}
-                      className="px-2 py-1 bg-white/20 hover:bg-white/30 rounded text-xs font-medium transition"
-                    >
-                      {min}m
-                    </button>
-                  ))}
-                </div>
               </div>
             </div>
             <div className="flex gap-2">
@@ -1055,7 +982,7 @@ const ActivityLog = () => {
         </div>
       </div>
 
-      {/* Task List/Grid */}
+      {/* Task List / Grid */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -1117,6 +1044,8 @@ const ActivityLog = () => {
                   <div className="flex flex-col md:flex-row md:items-start gap-4">
                     <button
                       onClick={() => toggleComplete(task.id, todayStr)}
+                      role="checkbox"
+                      aria-checked={isCompletedToday}
                       className={`flex-shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center transition-all min-h-[44px] min-w-[44px] ${
                         isCompletedToday
                           ? 'bg-green-500 border-green-500 text-white shadow-md'
@@ -1274,6 +1203,8 @@ const ActivityLog = () => {
                     <div className="flex items-start justify-between mb-2">
                       <button
                         onClick={() => toggleComplete(task.id, todayStr)}
+                        role="checkbox"
+                        aria-checked={isCompletedToday}
                         className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all min-h-[44px] min-w-[44px] ${
                           isCompletedToday
                             ? 'bg-green-500 border-green-500 text-white shadow-md'

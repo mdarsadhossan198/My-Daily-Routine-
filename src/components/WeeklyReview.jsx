@@ -7,9 +7,17 @@ import {
   TrendingUp, Target, Clock, Calendar, Award,
   Download, Brain, Zap,
   BarChart3, PieChart as PieChartIcon, LineChart as LineChartIcon,
-  RefreshCw, CheckCircle, XCircle, AlertCircle,
-  BookOpen, Edit2, Save, X, ListTodo, Filter
+  RefreshCw, CheckCircle, AlertCircle,
+  BookOpen, Edit2, Save, X, ListTodo
 } from 'lucide-react';
+
+// Helper: get local date string YYYY-MM-DD
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const WeeklyReview = () => {
   // ---------- State ----------
@@ -50,13 +58,22 @@ const WeeklyReview = () => {
   useEffect(() => {
     setMounted(true);
     loadData();
+
     const handleStorage = (e) => {
       if (e.key === 'advancedTimeBlocks') {
         loadData();
       }
     };
+
+    const handleTasksUpdated = () => loadData();
+
     window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
+    window.addEventListener('tasksUpdated', handleTasksUpdated);
+
+    return () => {
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('tasksUpdated', handleTasksUpdated);
+    };
   }, [loadData]);
 
   useEffect(() => {
@@ -69,7 +86,7 @@ const WeeklyReview = () => {
     for (let i = 6; i >= 0; i--) {
       const date = new Date(today);
       date.setDate(today.getDate() - i);
-      days.push(date.toISOString().split('T')[0]);
+      days.push(getLocalDateString(date));
     }
     return days;
   }, []);
@@ -127,6 +144,7 @@ const WeeklyReview = () => {
     timeBlocks.forEach(block => {
       if (block.completedDates && Object.keys(block.completedDates).length > 0) {
         const cat = block.category || 'other';
+        // Use the first completed date for duration calculation; for simplicity, we use the block's start/end.
         const start = block.start?.split(':').map(Number) || [9, 0];
         const end = block.end?.split(':').map(Number) || [10, 0];
         const duration = ((end[0] * 60 + end[1]) - (start[0] * 60 + start[1])) / 60;
@@ -270,7 +288,7 @@ const WeeklyReview = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `weekly-review-${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `weekly-review-${getLocalDateString()}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -290,7 +308,6 @@ const WeeklyReview = () => {
     }
   };
 
-  // ---------- মডাল কম্পোনেন্ট (মোবাইল অপ্টিমাইজড) ----------
   const DayDetailModal = ({ day, onClose }) => {
     if (!day) return null;
     return (
@@ -415,7 +432,7 @@ const WeeklyReview = () => {
 
   return (
     <div className="space-y-6 px-2 sm:px-0">
-      {/* হেডার – মোবাইলে স্ট্যাক */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -435,7 +452,7 @@ const WeeklyReview = () => {
         </button>
       </div>
 
-      {/* সামারি কার্ড – মোবাইলে 2 কলাম, ছোট ফন্ট */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl p-3 sm:p-5 text-white shadow-lg">
           <div className="flex justify-between items-center">
@@ -496,7 +513,7 @@ const WeeklyReview = () => {
         </div>
       </div>
 
-      {/* ডেইলি ট্রেন্ড চার্ট – মোবাইলে স্ট্যাক, শুধু মাউন্টের পর রেন্ডার */}
+      {/* Daily Trend Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -542,7 +559,7 @@ const WeeklyReview = () => {
         </div>
       </div>
 
-      {/* ডিস্ট্রিবিউশন ও ইনসাইট – মোবাইলে স্ট্যাক */}
+      {/* Distribution & Insights */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-200 dark:border-gray-700">
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
@@ -655,7 +672,7 @@ const WeeklyReview = () => {
         </div>
       </div>
 
-      {/* গোল ট্র্যাকার – মোবাইলে ১ কলাম */}
+      {/* Goal Tracker */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-3 sm:p-5 shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
@@ -717,7 +734,7 @@ const WeeklyReview = () => {
         </div>
       </div>
 
-      {/* মডাল */}
+      {/* Modals */}
       {showDayModal && <DayDetailModal day={selectedDay} onClose={() => setShowDayModal(false)} />}
       {showCategoryModal && <CategoryDetailModal category={selectedCategory} onClose={() => setShowCategoryModal(false)} />}
     </div>

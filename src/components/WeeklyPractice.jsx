@@ -34,17 +34,12 @@ const WeeklyPractice = ({ language }) => {
 
   // Deep background colors (quick swatches)
   const colorOptions = [
-    '#6d2e46', // deep burgundy
-    '#1e4b5e', // deep teal
-    '#a3752b', // rich mustard
-    '#5e3a6b', // deep purple
-    '#3f5e4a', // dark olive
-    '#3a5f6b', // slate blue
-    '#964b4b', // muted red
-    '#2d6a4f'  // forest green
+    '#6d2e46', '#1e4b5e', '#a3752b', '#5e3a6b',
+    '#3f5e4a', '#3a5f6b', '#964b4b', '#2d6a4f'
   ];
   const getRandomColor = () => colorOptions[Math.floor(Math.random() * colorOptions.length)];
 
+  // Multiple notes state with default note from screenshot
   const [multipleNotes, setMultipleNotes] = useState(() => {
     const saved = localStorage.getItem('weeklyPracticeMultipleNotes');
     if (saved) {
@@ -64,10 +59,24 @@ const WeeklyPractice = ({ language }) => {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         color: getRandomColor(),
-        textColor: '#ffffff', // default white
+        textColor: '#ffffff',
       }];
     }
-    return [];
+    // Default note from the image
+    const defaultNote = {
+      id: 'default-genaral-knowlogy',
+      title: 'GENARAL KNOWLOGY',
+      topic: 'Topic',
+      content: `1. मिळी फंडकल ऐसामा आलमगीर (शून्ये सरकार, पहली उन्नयन ७ समयास)
+2. आमिर थसक्र मारुमुद् ठोझूती (अर्थ ७ परिकल्पना)
+3. सालाइटेन्दिन अधर्म (श्वराई)
+4. बेकवाल रासान मारुमुद् (विद्या, ज्ञानाची ७ थनिज सम्पदा)`,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      color: '#2d6a4f',
+      textColor: '#ffffff',
+    };
+    return [defaultNote];
   });
 
   const [weeklyGoal, setWeeklyGoal] = useState(() => localStorage.getItem('weeklyPracticeGoal') || '');
@@ -84,7 +93,14 @@ const WeeklyPractice = ({ language }) => {
 
   // Notes
   const [noteSearch, setNoteSearch] = useState('');
-  const [expandedNotes, setExpandedNotes] = useState([]);
+  const [expandedNotes, setExpandedNotes] = useState(() => {
+    // Auto-expand the default note if no saved notes exist
+    const saved = localStorage.getItem('weeklyPracticeMultipleNotes');
+    if (!saved) {
+      return ['default-genaral-knowlogy'];
+    }
+    return [];
+  });
 
   // Notification permission
   const [notificationPerm, setNotificationPerm] = useState(Notification.permission);
@@ -539,7 +555,7 @@ const WeeklyPractice = ({ language }) => {
                         value={note.title}
                         onChange={(e) => updateNote(note.id, 'title', e.target.value)}
                         placeholder={language === 'bn' ? 'শিরোনাম' : 'Title'}
-                        className="w-full p-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none font-bold placeholder-white/50"
+                        className="w-full p-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none font-bold text-lg placeholder-white/50"
                         style={{ color: note.textColor }}
                       />
                     </div>
@@ -554,7 +570,7 @@ const WeeklyPractice = ({ language }) => {
                         value={note.topic}
                         onChange={(e) => updateNote(note.id, 'topic', e.target.value)}
                         placeholder={language === 'bn' ? 'বিষয়' : 'Topic'}
-                        className="w-full p-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none font-bold placeholder-white/50"
+                        className="w-full p-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none font-bold text-lg placeholder-white/50"
                         style={{ color: note.textColor }}
                       />
                     </div>
@@ -568,8 +584,8 @@ const WeeklyPractice = ({ language }) => {
                         value={note.content}
                         onChange={(e) => updateNote(note.id, 'content', e.target.value)}
                         placeholder={language === 'bn' ? 'নোট লিখুন...' : 'Write your note...'}
-                        rows={4}
-                        className="w-full p-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none resize-y font-bold placeholder-white/50"
+                        rows={6}
+                        className="w-full p-2 bg-white/10 border border-white/20 rounded-lg focus:ring-2 focus:ring-primary/50 outline-none resize-y font-bold text-lg placeholder-white/50"
                         style={{ color: note.textColor }}
                       />
                     </div>

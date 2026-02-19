@@ -8,7 +8,22 @@ import {
 } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-// দ্বিভাষিক অনুবাদ (নতুন কী যুক্ত)
+// ---------- Helper: get local date string YYYY-MM-DD ----------
+const getLocalDateString = (date = new Date()) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// ---------- Helper: UTC date to local date ----------
+const utcToLocalDate = (utcDateStr) => {
+  if (!utcDateStr) return utcDateStr;
+  // যদি ইতিমধ্যে YYYY-MM-DD ফরম্যাটে থাকে, তাহলে সেটিকে ডেট হিসেবে পার্স করে আবার লোকাল স্ট্রিং বের করি
+  const date = new Date(utcDateStr + 'T00:00:00Z'); // UTC মিডনাইট হিসেবে পার্স
+  return getLocalDateString(date);
+};
+
 const translations = {
   bn: {
     title: 'কাজের ইতিহাস',
@@ -142,10 +157,14 @@ const translations = {
   }
 };
 
+// ---------- Helper: check if a task is completed on a specific date ----------
+const isTaskCompletedOnDate = (task, date) => {
+  return task.completedDates?.[date] || false;
+};
+
 const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
   const t = translations[language];
 
-  // ক্যাটাগরি ও অগ্রাধিকার (মেমো) – আগের মতোই
   const categories = useMemo(() => [
     { id: 'all', label: t.allCategories, icon: Filter },
     { id: 'work', label: 'Work', icon: Briefcase, color: 'bg-blue-500' },
@@ -166,7 +185,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     { id: 'critical', label: 'Critical', icon: Zap, color: 'bg-red-500' }
   ], [t]);
 
-  // স্টেট
   const [timeBlocks, setTimeBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState(null);
@@ -182,14 +200,11 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     return saved ? parseInt(saved) : 5;
   });
   const [showGoalInput, setShowGoalInput] = useState(false);
-
-  // থিম স্টেট (ম্যানুয়াল টগলের জন্য)
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
     return saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
   });
 
-  // লোকাল স্টোরেজে ভিউ মোড ও গোল সংরক্ষণ
   useEffect(() => {
     localStorage.setItem('historyViewMode', viewMode);
   }, [viewMode]);
@@ -207,12 +222,58 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     }
   }, [theme]);
 
-  // ডাটা লোড
+  // মাইগ্রেশন ফাংশন: পুরনো UTC ডেটকে লোকাল ডেটে কনভার্ট করে
+  const migrateOldData = useCallback((blocks) => {
+    return blocks.map(block => {
+      const newBlock = { ...block };
+      
+      // টাস্কের মূল date ফিল্ড মাইগ্রেট করুন
+      if (newBlock.date) {
+        newBlock.date = utcToLocalDate(newBlock.date);
+      }
+      
+      // completedDates-এর কীগুলো মাইগ্রেট করুন
+      if (newBlock.completedDates) {
+        const newCompletedDates = {};
+        Object.keys(newBlock.completedDates).forEach(dateKey => {
+          const localKey = utcToLocalDate(dateKey);
+          newCompletedDates[localKey] = newBlock.completedDates[dateKey];
+        });
+        newBlock.completedDates = newCompletedDates;
+      }
+      
+      return newBlock;
+    });
+  }, []);
+
   const loadData = useCallback(() => {
     try {
       const saved = localStorage.getItem('advancedTimeBlocks');
       if (saved) {
-        setTimeBlocks(JSON.parse(saved));
+        let parsed = JSON.parse(saved);
+        
+        // পুরনো ডেটা মাইগ্রেট করুন
+        const migrated = migrateOldData(parsed);
+        
+        // আরও মাইগ্রেশন: পুরনো completed/completedDate ফরম্যাট থেকে
+        const fullyMigrated = migrated.map(block => {
+          if (block.completed !== undefined && block.completedDate && !block.completedDates) {
+            block.completedDates = { [block.completedDate]: true };
+          }
+          if (!block.completedDates) block.completedDates = {};
+          delete block.completed;
+          delete block.completedDate;
+          return block;
+        });
+        
+        setTimeBlocks(fullyMigrated);
+        
+        // যদি কোনো পরিবর্তন হয়ে থাকে, তাহলে localStorage আপডেট করুন
+        if (JSON.stringify(parsed) !== JSON.stringify(fullyMigrated)) {
+          localStorage.setItem('advancedTimeBlocks', JSON.stringify(fullyMigrated));
+        }
+      } else {
+        setTimeBlocks([]);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -220,15 +281,32 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     } finally {
       setLoading(false);
     }
-  }, [t.loading]);
+  }, [t.loading, migrateOldData]);
 
   useEffect(() => {
     loadData();
     const interval = setInterval(loadData, 5000);
-    return () => clearInterval(interval);
+
+    const handleStorage = (e) => {
+      if (e.key === 'advancedTimeBlocks') {
+        loadData();
+      }
+    };
+
+    const handleTasksUpdated = () => loadData();
+
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('tasksUpdated', handleTasksUpdated);
+    window.addEventListener('timeBlocksStorageChanged', handleTasksUpdated); // ← এই লাইন যোগ করুন
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('tasksUpdated', handleTasksUpdated);
+      window.removeEventListener('timeBlocksStorageChanged', handleTasksUpdated);
+    };
   }, [loadData]);
 
-  // কীবোর্ড শর্টকাট
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape' && selectedDate) {
@@ -239,38 +317,34 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedDate]);
 
-  // ---------- হেল্পার ফাংশন ----------
+  // শুধু নির্দিষ্ট তারিখের ব্লক (মাস্টার বাদে)
+  const displayableTasks = useMemo(() => {
+    return timeBlocks.filter(block => block.date !== null);
+  }, [timeBlocks]);
+
   const getDayOfWeek = (dateStr) => {
     const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
     return days[new Date(dateStr).getDay()];
   };
 
   const getTasksForDate = useCallback((dateStr) => {
-    const dayOfWeek = getDayOfWeek(dateStr);
-    return timeBlocks.filter(block => {
-      const isExactDate = block.date === dateStr;
-      const isRecurring = block.repeats && block.repeats.includes(dayOfWeek);
-      const isScheduled = block.scheduledDay === dayOfWeek;
-      return isExactDate || isRecurring || isScheduled;
-    }).map(task => ({
+    return displayableTasks.filter(block => block.date === dateStr).map(task => ({
       ...task,
-      completedOnThisDate: task.completed && task.completedDate === dateStr
+      completedOnThisDate: isTaskCompletedOnDate(task, dateStr)
     }));
-  }, [timeBlocks]);
+  }, [displayableTasks]);
 
-  // তারিখ রেঞ্জ অ্যারে (সবচেয়ে নতুন প্রথমে)
   const getDateRangeArray = useCallback(() => {
     const days = dateRange === 'all' ? 365 : parseInt(dateRange);
     const dates = [];
     for (let i = 0; i < days; i++) {
       const date = new Date();
       date.setDate(date.getDate() - i);
-      dates.push(date.toISOString().split('T')[0]);
+      dates.push(getLocalDateString(date));
     }
     return dates;
   }, [dateRange]);
 
-  // কর্মক্ষমতা রেটিং
   const getPerformanceRating = (completed, total) => {
     if (total === 0) return {
       label: t.noTasks,
@@ -303,7 +377,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     };
   };
 
-  // ---------- দৈনিক পরিসংখ্যান (মেমো) ----------
   const dailyStats = useMemo(() => {
     const allDates = getDateRangeArray();
     return allDates.map(date => {
@@ -316,7 +389,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     });
   }, [getDateRangeArray, getTasksForDate, getPerformanceRating, t]);
 
-  // ফিল্টারিং
   const filteredDailyStats = useMemo(() => {
     return dailyStats.map(day => ({
       ...day,
@@ -328,9 +400,13 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     })).filter(day => day.tasks.length > 0 || dateRange === 'all');
   }, [dailyStats, filterCategory, filterPriority, dateRange]);
 
-  // ---------- সামগ্রিক পরিসংখ্যান ----------
-  const totalCompleted = useMemo(() => timeBlocks.filter(t => t.completed).length, [timeBlocks]);
-  const totalTasks = timeBlocks.length;
+  const totalCompleted = useMemo(() => {
+    return displayableTasks.filter(t => {
+      return t.completedDates && Object.values(t.completedDates).some(v => v === true);
+    }).length;
+  }, [displayableTasks]);
+
+  const totalTasks = displayableTasks.length;
   const overallCompletionRate = totalTasks === 0 ? 0 : Math.round((totalCompleted / totalTasks) * 100);
 
   const streak = useMemo(() => {
@@ -354,27 +430,24 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     }, null);
   }, [dailyStats]);
 
-  // ক্যাটাগরি পারফরম্যান্স
   const categoryPerformance = useMemo(() => {
     return categories.slice(1).map(cat => {
-      const catTasks = timeBlocks.filter(t => t.category === cat.id);
-      const completed = catTasks.filter(t => t.completed).length;
+      const catTasks = displayableTasks.filter(t => t.category === cat.id);
+      const completed = catTasks.filter(t => t.completedDates && Object.values(t.completedDates).some(v => v === true)).length;
       const total = catTasks.length;
       const rate = total === 0 ? 0 : Math.round((completed / total) * 100);
       return { ...cat, completed, total, rate };
     }).filter(c => c.total > 0).sort((a, b) => b.rate - a.rate);
-  }, [timeBlocks, categories]);
+  }, [displayableTasks, categories]);
 
   const bestCategory = categoryPerformance[0];
 
-  // সপ্তাহের গড়
   const weeklyAvg = useMemo(() => {
     const last7 = dailyStats.slice(0, 7);
     const sum = last7.reduce((acc, day) => acc + day.completed, 0);
     return (sum / 7).toFixed(1);
   }, [dailyStats]);
 
-  // সপ্তাহের দিন অনুযায়ী পারফরম্যান্স
   const weekdayPerformance = useMemo(() => {
     const weekdayMap = {
       sun: { total: 0, completed: 0, count: 0 },
@@ -408,7 +481,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
   const bestWeekday = weekdayPerformance[0];
   const worstWeekday = weekdayPerformance[weekdayPerformance.length - 1];
 
-  // ---------- টাইম স্লট পারফরম্যান্স ----------
   const timeSlotPerformance = useMemo(() => {
     const slots = {
       morning: { label: t.morning, count: 0, completed: 0, start: 5, end: 12 },
@@ -416,7 +488,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
       evening: { label: t.evening, count: 0, completed: 0, start: 17, end: 21 },
       night: { label: t.night, count: 0, completed: 0, start: 21, end: 5 },
     };
-    timeBlocks.forEach(task => {
+    displayableTasks.forEach(task => {
       if (task.start) {
         const hour = parseInt(task.start.split(':')[0]);
         let slot = 'night';
@@ -425,7 +497,9 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
         else if (hour >= 17 && hour < 21) slot = 'evening';
         if (slots[slot]) {
           slots[slot].count++;
-          if (task.completed) slots[slot].completed++;
+          if (task.completedDates && Object.values(task.completedDates).some(v => v === true)) {
+            slots[slot].completed++;
+          }
         }
       }
     });
@@ -435,14 +509,12 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
       return rate > (best.rate || 0) ? { ...slot, rate } : best;
     }, { rate: 0 });
     return { slots, bestSlot };
-  }, [timeBlocks, t]);
+  }, [displayableTasks, t]);
 
-  // ---------- টার্গেট পূরণ ----------
   const goalMetDays = useMemo(() => {
     return dailyStats.filter(day => day.completed >= dailyGoal).length;
   }, [dailyStats, dailyGoal]);
 
-  // ---------- হিটম্যাপ ডাটা (গত ৩০ দিন) ----------
   const heatmapData = useMemo(() => {
     return dailyStats.slice(0, 30).map(day => ({
       date: day.date,
@@ -451,10 +523,9 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
     }));
   }, [dailyStats]);
 
-  // ---------- এক্সপোর্ট ফাংশন ----------
   const exportHistory = (format = 'json') => {
     const data = {
-      exportDate: new Date().toISOString(),
+      exportDate: getLocalDateString(),
       stats: { totalCompleted, totalTasks, overallCompletionRate, streak, bestDay, dailyGoal, goalMetDays },
       history: dailyStats
     };
@@ -463,7 +534,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `history-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `history-${getLocalDateString()}.json`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success(t.exportJSON);
@@ -476,14 +547,13 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `history-${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `history-${getLocalDateString()}.csv`;
       a.click();
       URL.revokeObjectURL(url);
       toast.success(t.exportCSV);
     }
   };
 
-  // ---------- ডিলিট হ্যান্ডলার (Undo সহ) ----------
   const [lastDeleted, setLastDeleted] = useState(null);
 
   const handleDeleteAll = () => {
@@ -552,7 +622,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
 
   return (
     <div className="space-y-6 animate-fadeIn px-4 sm:px-0">
-      {/* হেডার ও থিম টগল – মোবাইলে স্ট্যাক করে */}
+      {/* হেডার */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
@@ -589,7 +659,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
         </div>
       </div>
 
-      {/* পরিসংখ্যান কার্ড – ২ কলাম মোবাইলে */}
+      {/* পরিসংখ্যান কার্ড */}
       <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard title={t.totalTasks} value={totalTasks} icon={<Target />} color="blue" />
         <StatCard title={t.completed} value={totalCompleted} icon={<CheckCircle />} color="green" />
@@ -597,7 +667,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
         <StatCard title={t.currentStreak} value={`${streak} ${t.days}`} icon={<Award />} color="orange" />
       </div>
 
-      {/* উন্নত পরিসংখ্যান + নতুন ইনসাইট – মোবাইলে ১ কলাম, ট্যাবলেটে ২ */}
+      {/* ইনসাইট কার্ড */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
         {bestCategory && (
           <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700">
@@ -637,7 +707,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
             {weeklyAvg} <span className="text-sm font-normal text-gray-500">{t.tasks}/{t.days}</span>
           </div>
         </div>
-        {/* নতুন ইনসাইট: সেরা সময় */}
         {timeSlotPerformance.bestSlot.rate > 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1">
@@ -650,7 +719,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
             </div>
           </div>
         )}
-        {/* টার্গেট পূরণ */}
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1">
             <TargetIcon size={16} className="text-indigo-500" />
@@ -661,7 +729,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
             <span className="text-sm text-gray-500">{t.days}</span>
           </div>
         </div>
-        {/* সেরা ও খারাপ সপ্তাহের দিন */}
         {bestWeekday && (
           <div className="bg-white dark:bg-gray-800 rounded-xl p-4 shadow border border-gray-200 dark:border-gray-700">
             <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-1">
@@ -712,7 +779,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
         </div>
       </div>
 
-      {/* ক্যাটাগরি পারফরম্যান্স বার */}
+      {/* ক্যাটাগরি পারফরম্যান্স */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-lg border border-gray-200 dark:border-gray-700">
         <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <Target className="text-indigo-500" /> {t.mostProductivity}
@@ -774,7 +841,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
         )}
       </div>
 
-      {/* ফিল্টার ও ভিউ অপশন – মোবাইলে স্ট্যাক করা */}
+      {/* ফিল্টার */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-5 shadow-lg border border-gray-100 dark:border-gray-700">
         <div className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
@@ -840,7 +907,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
         </div>
       </div>
 
-      {/* গ্রিড ভিউ – মোবাইলে ৩ কলাম, ছোট ফন্ট */}
+      {/* ভিউ (গ্রিড/লিস্ট) */}
       {viewMode === 'grid' ? (
         <div className="bg-white dark:bg-gray-800 rounded-xl p-4 sm:p-6 shadow-lg border border-gray-100 dark:border-gray-700">
           <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-10 gap-1 sm:gap-2">
@@ -860,9 +927,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
           </div>
         </div>
       ) : (
-        /* লিস্ট ভিউ – মোবাইলে কার্ড, ট্যাবলেট/ডেস্কটপে টেবিল */
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
-          {/* মোবাইলের জন্য কার্ড ভিউ */}
           <div className="block md:hidden divide-y divide-gray-200 dark:divide-gray-700">
             {filteredDailyStats.slice(0, 30).map(day => (
               <div
@@ -896,7 +961,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
             ))}
           </div>
 
-          {/* ডেস্কটপের জন্য টেবিল */}
           <table className="hidden md:table min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
@@ -979,7 +1043,7 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
         </div>
       )}
 
-      {/* দিনের বিস্তারিত মোডাল – মোবাইল ফ্রেন্ডলি */}
+      {/* মডাল: নির্দিষ্ট দিনের টাস্ক */}
       {selectedDate && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={() => setSelectedDate(null)}>
           <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto shadow-2xl" onClick={e => e.stopPropagation()}>
@@ -1081,7 +1145,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
                                     <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">{task.description}</p>
                                   )}
                                 </div>
-                                {/* ডিলিট বাটন */}
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -1109,7 +1172,6 @@ const History = ({ language = 'bn', onDeleteAll, onDeleteTask }) => {
   );
 };
 
-// স্ট্যাট কার্ড কম্পোনেন্ট (মোবাইল ফ্রেন্ডলি)
 const StatCard = ({ title, value, icon, color }) => {
   const colors = {
     blue: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600', icon: 'text-blue-600' },

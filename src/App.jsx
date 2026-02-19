@@ -34,6 +34,9 @@ import {
   RotateCcw,
 } from 'lucide-react';
 
+// কাস্টম ইভেন্টের নাম (ActivityLog, TimeBlockManager-এর সাথে মিল রাখতে হবে)
+const STORAGE_CHANGE_EVENT = 'timeBlocksStorageChanged';
+
 // Lazy load components for better performance
 const TimeBlockManager = lazy(() => import('./components/TimeBlockManager'));
 const ActivityLog = lazy(() => import('./components/ActivityLog'));
@@ -148,6 +151,7 @@ function AppContent() {
         const blocks = JSON.parse(saved);
         const total = blocks.length;
         const completed = blocks.filter((b) => b.completedDates && Object.keys(b.completedDates).some(date => date === new Date().toISOString().split('T')[0])).length;
+        // total শূন্য হলে productivity 0 রাখি (NaN এড়াতে)
         const productivity = total > 0 ? Math.round((completed / total) * 100) : 0;
         setStats({
           totalTasks: total,
@@ -200,9 +204,19 @@ function AppContent() {
         loadGoals();
       }
     };
+    // কাস্টম ইভেন্টের জন্যও হ্যান্ডলার যোগ করুন (ঐচ্ছিক, কিন্তু ভালো অভ্যাস)
+    const handleCustomEvent = () => {
+      loadTasks();
+      loadStats();
+      loadGoals();
+    };
 
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+    window.addEventListener(STORAGE_CHANGE_EVENT, handleCustomEvent);
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener(STORAGE_CHANGE_EVENT, handleCustomEvent);
+    };
   }, [loadStats, loadGoals, loadTasks]);
 
   // ---------- Persist settings ----------
@@ -417,6 +431,8 @@ function AppContent() {
             }
             setTasks(data.timeBlocks);
             setGoals(data.goals || []);
+            // কাস্টম ইভেন্ট ডিসপাচ করুন – অন্য কম্পোনেন্টকে জানাতে
+            window.dispatchEvent(new CustomEvent(STORAGE_CHANGE_EVENT));
             toast.success(appLanguage === 'bn' ? 'ইম্পোর্ট সফল!' : 'Import successful!');
           }
         }
@@ -433,6 +449,8 @@ function AppContent() {
       localStorage.removeItem('goalsList');
       setTasks([]);
       setGoals([]);
+      // কাস্টম ইভেন্ট ডিসপাচ করুন
+      window.dispatchEvent(new CustomEvent(STORAGE_CHANGE_EVENT));
       toast.success(appLanguage === 'bn' ? 'সব ডাটা মুছে ফেলা হয়েছে' : 'All data cleared');
     }
   };
